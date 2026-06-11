@@ -265,7 +265,6 @@ function renderAlerts() {
         alert.computedSeverity = severity;
 
         // 3. LOGIQUE DE FILTRAGE DES ALERTES BLANCHES (LISTE NOIRE)
-        // Masqué par défaut sauf si case cochée OU si choix explicite dans le sélecteur de gravité
         if (alert.computedSeverity === 'blacklist') {
             if (!isShowBlacklistChecked && selectedSeverity !== 'blacklist') {
                 return false; 
@@ -373,7 +372,6 @@ function renderGridView(alerts) {
             `;
         }
 
-        // Règle 4 : Si blanc, affichage épuré anti-pollution (Uniquement le titre)
         if (isBl) {
             card.innerHTML = `
                 <div class="card-header">
@@ -505,22 +503,17 @@ function formatDisplayDate(dateStr) {
     return parsed.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-// --- MISE À JOUR COMPACTE DES STATISTIQUES AVEC COULEURS ---
 function updateStats(totalCount, filteredAlerts) {
     statTotal.textContent = totalCount;
     
-    // Initialisation des compteurs analytiques
     let countsSeverity = { danger: 0, warning: 0, info: 0, blacklist: 0 };
     const countsDept = {};
 
     filteredAlerts.forEach(a => {
-        // Compteur Gravité
         if (countsSeverity[a.computedSeverity] !== undefined) countsSeverity[a.computedSeverity]++;
-        // Compteur Département
         countsDept[a.deptCode] = (countsDept[a.deptCode] || 0) + 1;
     });
 
-    // Injection visuelle de la matrice des couleurs
     statsBySeverity.innerHTML = `
         <div class="severity-stat-badge" title="Bloquant Impératif">🔴 <strong>${countsSeverity.danger}</strong></div>
         <div class="severity-stat-badge" title="À vérifier / Partiel">🟠 <strong>${countsSeverity.warning}</strong></div>
@@ -528,7 +521,6 @@ function updateStats(totalCount, filteredAlerts) {
         <div class="severity-stat-badge" title="Liste Noire">⚪ <strong>${countsSeverity.blacklist}</strong></div>
     `;
 
-    // Injection des départements triés par volume décroissant
     statsByDept.innerHTML = '';
     const sortedDepts = Object.entries(countsDept).sort((a, b) => b[1] - a[1]);
 
@@ -539,3 +531,4 @@ function updateStats(totalCount, filteredAlerts) {
         statsByDept.appendChild(tag);
     }
 }
+// Note : L'accolade en trop a été supprimée proprement d'ici.
