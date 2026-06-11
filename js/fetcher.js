@@ -20,18 +20,31 @@ export async function fetchDeptData(deptCode) {
 async function fetchTurboleadData(deptCode, sources) {
     const promises = sources.map(async (source) => {
         try {
-            // !!! LA CORRECTION EST ICI !!!
-            // Au lieu de fetch(source.url), on passe l'URL originale en paramètre à votre Worker
+            // On envoie la cible à votre Worker
             const urlViaWorker = `https://hub-inforoutefrance.xtremxlogik.workers.dev/?url=${encodeURIComponent(source.url)}`;
             
-            const response = await fetch(urlViaWorker);
+            const response = await fetch(urlViaWorker, {
+                method: 'GET',
+                headers: {
+                    // Force le serveur Turbolead distant à comprendre qu'on est une requête API (AJAX)
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json, text/javascript, */*; q=0.01'
+                }
+            });
             
             if (!response.ok) {
                 throw new Error(`Erreur serveur proxy: ${response.status}`);
             }
 
-            // Votre worker renvoie directement le vrai fichier JSON sans l'envelopper
-            const geojson = await response.json();
+            const rawText = await response.text();
+
+            // Sécurité anti-HTML : si le serveur renvoie quand même du HTML, on l'ignore proprement sans faire planter le script
+            if (rawText.trim().startsWith('<!DOCTYPE') || rawText.trim().startsWith('<html')) {
+                console.warn(`[Dept ${deptCode}] La source "${source.name}" a renvoyé du HTML au lieu de JSON.`);
+                return [];
+            }
+
+            const geojson = JSON.parse(rawText);
             
             if (!geojson || !geojson.features || !Array.isArray(geojson.features)) return [];
 
@@ -145,19 +158,14 @@ function cleanText(str) {
 }
 
 function gmPostJson(url, body) {
-    // Si échec direct en raison du CORS, on passe par un déroutement via CorsProxy.io pour le GET simulé
-    return fetch(url, {
+    const urlViaWorker = `https://hub-inforoutefrance.xtremxlogik.workers.dev/?url=${encodeURIComponent(url)}`;
+    
+    return fetch(urlViaWorker, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
         body: JSON.stringify(body)
-    }).catch(() => {
-        const fallBackUrl = `https://corsproxy.io/?${encodeURIComponent(url + '?id=' + (body.id || body.idAll || ''))}`;
-        return fetch(fallBackUrl);
-    }).then(async (res) => {
-        const rawData = await res.json();
-        if (rawData.contents) {
-            return JSON.parse(rawData.contents);
-        }
-        return rawData;
-    });
+    }).then(res => res.json());
 }
