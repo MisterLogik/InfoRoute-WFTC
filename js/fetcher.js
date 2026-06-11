@@ -20,13 +20,13 @@ export async function fetchDeptData(deptCode) {
 async function fetchTurboleadData(deptCode, sources) {
     const promises = sources.map(async (source) => {
         try {
-            // On envoie la cible à votre Worker
-            const urlViaWorker = `https://hub-inforoutefrance.xtremxlogik.workers.dev/?url=${encodeURIComponent(source.url)}`;
+            // CORRECTION: Utilisation d'une URL relative car le Worker est sur le même domaine
+            const urlViaWorker = `/?url=${encodeURIComponent(source.url)}`;
             
             const response = await fetch(urlViaWorker, {
                 method: 'GET',
                 headers: {
-                    // Force le serveur Turbolead distant à comprendre qu'on est une requête API (AJAX)
+                    // Signale aux serveurs distants qu'il s'agit d'une requête AJAX légitime
                     'X-Requested-With': 'XMLHttpRequest',
                     'Accept': 'application/json, text/javascript, */*; q=0.01'
                 }
@@ -38,7 +38,7 @@ async function fetchTurboleadData(deptCode, sources) {
 
             const rawText = await response.text();
 
-            // Sécurité anti-HTML : si le serveur renvoie quand même du HTML, on l'ignore proprement sans faire planter le script
+            // Sécurité anti-HTML : si le serveur renvoie une page d'erreur ou d'accueil HTML au lieu du JSON
             if (rawText.trim().startsWith('<!DOCTYPE') || rawText.trim().startsWith('<html')) {
                 console.warn(`[Dept ${deptCode}] La source "${source.name}" a renvoyé du HTML au lieu de JSON.`);
                 return [];
@@ -158,14 +158,14 @@ function cleanText(str) {
 }
 
 function gmPostJson(url, body) {
-    const urlViaWorker = `https://hub-inforoutefrance.xtremxlogik.workers.dev/?url=${encodeURIComponent(url)}`;
+    // CORRECTION: Utilisation d'une URL relative également pour les requêtes POST (Savoie)
+    const urlViaWorker = `/?url=${encodeURIComponent(url)}`;
     
     return fetch(urlViaWorker, {
         method: 'POST',
         headers: { 
             'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest'
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json, text/javascript, */*; q=0.01'
         },
-        body: JSON.stringify(body)
-    }).then(res => res.json());
-}
+        body:
