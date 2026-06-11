@@ -17,25 +17,40 @@ export async function fetchDeptData(deptCode) {
 }
 
 // --- MOTEUR 1 : Isère (38) & Haute-Savoie (74) ---
+// --- MOTEUR 1 : Isère (38) & Haute-Savoie (74) ---
 async function fetchTurboleadData(deptCode, sources) {
     let combinedAlerts = [];
 
     // On lance toutes les requêtes du département en parallèle
     const promises = sources.map(async (source) => {
         try {
-            const response = await fetch(source.url);
+            // CORRECTION: Ajout des en-têtes AJAX nécessaires pour forcer Inforoute 74 à répondre en JSON
+            const response = await fetch(source.url, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json, text/javascript, */*; q=0.01',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
             if (!response.ok) return [];
+
+            // Sécurité additionnelle : on vérifie que le serveur n'a pas renvoyé du HTML (ex: redirection d'erreur)
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('text/html')) {
+                console.warn(`[Dept ${deptCode}] La source "${source.name}" a renvoyé du HTML. Le serveur refuse de fournir du JSON.`);
+                return [];
+            }
+
             const geojson = await response.json();
             
             if (!geojson.features || !Array.isArray(geojson.features)) return [];
 
             return geojson.features.map((feat, index) => {
-                // Tâche ingrate de dev : extraction et fallback des propriétés Turbolead
                 const props = feat.properties || {};
                 const geometry = feat.geometry || {};
                 const coords = geometry.coordinates || [null, null];
 
-                // On détermine le type d'événement selon le nom du flux ou une propriété
                 let type = source.name;
                 if (props.nature) type = props.nature;
                 if (props.type_evenement) type = props.type_evenement;
@@ -61,20 +76,18 @@ async function fetchTurboleadData(deptCode, sources) {
     return results.flat();
 }
 
-// --- MOTEUR 2 : Savoie (73) à double requête POST ---
+// --- MOTEUR 2 : Savoie (73) ---
 async function fetchSavoieApiData(deptCode, apiBaseUrl) {
     let alerts = [];
     const categoryIds = Object.keys(SAVOIE_CATEGORIES);
 
     for (const catId of categoryIds) {
         try {
-            // Étape A : Récupérer la liste des ID de la catégorie
             const list = await gmPostJson(apiBaseUrl, { id: parseInt(catId) });
             if (!Array.isArray(list)) continue;
 
             for (const item of list) {
                 try {
-                    // Étape B : Récupérer les détails de l'alerte
                     const detail = await gmPostJson(`${apiBaseUrl}/allData`, { idAll: item.idtInfo });
                     
                     let d = detail;
@@ -91,7 +104,6 @@ async function fetchSavoieApiData(deptCode, apiBaseUrl) {
                     const frType = d.FRType || item.libelleType || '';
                     const titre = [frType, axe, commune].filter(Boolean).join(' — ') || `Alerte #${item.idtInfo}`;
 
-                    // Reconstruction de la description analytique
                     let chunks = [];
                     const typeSoustype = [d.FRType, d.FRsousType].map(s => s ? s.trim() : '').filter(Boolean).join(' - ');
                     if (typeSoustype) chunks.push(`Type : ${typeSoustype}`);

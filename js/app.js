@@ -3,7 +3,8 @@ import { fetchDeptData } from './fetcher.js';
 
 // --- État de l'application ---
 window.ALL_ALERTS = []; 
-let sortAscending = true; // Par défaut : du plus ancien au plus récent (Ordre Chronologique)
+let sortAscending = false; // Tri décroissant par défaut (les plus récents en premier)
+let currentView = 'grid'; 
 
 // --- Éléments du DOM ---
 const btnSyncAll = document.getElementById('btn-sync-all');
@@ -12,10 +13,14 @@ const btnToggleSort = document.getElementById('btn-toggle-sort');
 const btnQuickToday = document.getElementById('btn-quick-today');
 const btnQuickTomorrow = document.getElementById('btn-quick-tomorrow');
 
+const btnViewGrid = document.getElementById('btn-view-grid');
+const btnViewTable = document.getElementById('btn-view-table');
+
 const syncStatus = document.getElementById('sync-status');
 const filterDept = document.getElementById('filter-dept');
 const filterType = document.getElementById('filter-type');
 const filterSeverity = document.getElementById('filter-severity');
+const filterShowBlacklist = document.getElementById('filter-show-blacklist'); // Case Liste Noire
 
 const filterCurrentOnly = document.getElementById('filter-current-only');
 const filterDateStart = document.getElementById('filter-date-start');
@@ -27,6 +32,7 @@ const searchBar = document.getElementById('search-bar');
 const alertsGrid = document.getElementById('alerts-grid');
 const loader = document.getElementById('loader');
 const statTotal = document.getElementById('stat-total');
+const statsBySeverity = document.getElementById('stats-by-severity'); // Zone Couleur Stats
 const statsByDept = document.getElementById('stats-by-dept');
 
 // --- Initialisation ---
@@ -53,17 +59,32 @@ function setupEventListeners() {
     btnQuickToday.addEventListener('click', setFilterToday);
     btnQuickTomorrow.addEventListener('click', setFilterTomorrow);
 
-    // Filtrage dynamique à chaque interaction
+    btnViewGrid.addEventListener('click', () => { switchView('grid'); });
+    btnViewTable.addEventListener('click', () => { switchView('table'); });
+
     searchBar.addEventListener('input', renderAlerts);
     filterDept.addEventListener('change', renderAlerts);
     filterType.addEventListener('change', renderAlerts);
     filterSeverity.addEventListener('change', renderAlerts);
+    filterShowBlacklist.addEventListener('change', renderAlerts); // Listener sur la case noire
     
     filterCurrentOnly.addEventListener('change', renderAlerts);
     filterDateStart.addEventListener('change', renderAlerts);
     filterDateStartLogic.addEventListener('change', renderAlerts);
     filterDateEnd.addEventListener('change', renderAlerts);
     filterDateEndLogic.addEventListener('change', renderAlerts);
+}
+
+function switchView(viewType) {
+    currentView = viewType;
+    if (viewType === 'grid') {
+        btnViewGrid.classList.add('active');
+        btnViewTable.classList.remove('active');
+    } else {
+        btnViewGrid.classList.remove('active');
+        btnViewTable.classList.add('active');
+    }
+    renderAlerts();
 }
 
 function toggleSortOrder() {
@@ -77,6 +98,7 @@ function resetAllFilters() {
     filterDept.value = 'all';
     filterType.value = 'all';
     filterSeverity.value = 'all';
+    filterShowBlacklist.checked = false; // Désactivé par défaut à la réinitialisation
     filterCurrentOnly.checked = false;
     filterDateStart.value = '';
     filterDateStartLogic.value = 'before_or_on';
@@ -110,7 +132,6 @@ function setFilterTomorrow() {
     renderAlerts();
 }
 
-// --- Synchronisation Réseau et Sauvegarde Locale ---
 async function synchronizeAll() {
     loader.classList.remove('hidden');
     btnSyncAll.disabled = true;
@@ -119,7 +140,6 @@ async function synchronizeAll() {
     const fetchPromises = Object.keys(DEPARTEMENTS_CONFIG).map(async (code) => {
         const deptAlerts = await fetchDeptData(code);
         return deptAlerts.map(alert => {
-            // Traçabilité WME TeamClosure : Injection du timestamp de découverte sur le flux original
             const detectionTime = new Date().toISOString();
             return { 
                 ...alert, 
@@ -158,13 +178,13 @@ function updateSyncStatus(time) {
     syncStatus.textContent = `Dernière synchro : ${time}`;
 }
 
-// --- Moteur de Filtrage, Qualification Métier et Tri ---
 function renderAlerts() {
     const searchQuery = searchBar.value.toLowerCase().trim();
     const selectedDept = filterDept.value;
     const selectedType = filterType.value;
     const selectedSeverity = filterSeverity.value;
-    
+    const isShowBlacklistChecked = filterShowBlacklist.checked;
+
     const currentOnly = filterCurrentOnly.checked;
     const startTargetStr = filterDateStart.value;
     const startLogic = filterDateStartLogic.value;
@@ -177,13 +197,7 @@ function renderAlerts() {
         const titleLower = alert.title.toLowerCase();
         const crossLower = alert.cross.toLowerCase();
 
-        // 1. Filtrage Liste Noire
-        const isBlacklisted = BLACKLIST_KEYWORDS.some(kw => 
-            titleLower.includes(kw.toLowerCase()) || crossLower.includes(kw.toLowerCase())
-        );
-        if (isBlacklisted) return false;
-
-        // 2. Traitement Spécifique Métier : Séparation Alternat VS Fermeture Totale
+        // 1. Détermination de la nature de la perturbation
         let calculatedType = alert.type;
         if (alert.type.toLowerCase().includes('travaux') || alert.type.toLowerCase().includes('chantier')) {
             const hasAlternatKeywords = crossLower.includes('alternat') || crossLower.includes('restriction') || crossLower.includes('voie impactée') || crossLower.includes('circulation alternée');
@@ -191,8 +205,74 @@ function renderAlerts() {
         } else if (titleLower.includes('ferm') || crossLower.includes('route fermée') || crossLower.includes('fermeture')) {
             calculatedType = 'Fermeture';
         }
+        alert.computedCategory = calculatedType;
 
-        // 3. Application des filtres de sélection de catégorie
+        // 2. MOTEUR ANALYTIQUE DE QUALIFICATION DES GRAVITÉS
+        let severity = 'warning'; // Orange par défaut
+
+        // Règle 4 : Détection Liste Noire (Priorité Haute)
+        const isBlacklisted = BLACKLIST_KEYWORDS.some(kw => 
+            titleLower.includes(kw.toLowerCase()) || crossLower.includes(kw.toLowerCase())
+        );
+
+        if (isBlacklisted) {
+            severity = 'blacklist'; // Blanc
+        } 
+        // Traitement Savoie (73)
+        else if (alert.deptCode === '73') {
+            const impactStr = alert.impact ? alert.impact.toLowerCase() : '';
+            const hasCoupeeInImpact = impactStr.includes('coupé') || impactStr.includes('coupee') || impactStr.includes('coupée') || impactStr.includes('coupés') || impactStr.includes('coupées');
+            
+            const closureKeywords = ['coupé', 'coupee', 'coupée', 'coupées', 'coupés', 'fermeture', 'barré', 'barrée', 'barrés', 'barrées', 'fermé', 'fermée', 'fermés', 'fermées'];
+            const hasClosureInDetails = closureKeywords.some(kw => crossLower.includes(kw) || titleLower.includes(kw));
+
+            if (hasCoupeeInImpact) {
+                severity = 'danger'; // Règle 1 -> Rouge
+            } else {
+                // Règle 2, 3 & 3bis : Impact non défini
+                if (hasClosureInDetails) {
+                    severity = 'warning'; // Règle 2 et Remontée 3bis -> Orange
+                } else {
+                    severity = 'info'; // Règle 3 et Alternat pur 3bis -> Gris
+                }
+            }
+        } 
+        // Traitement Isère (38)
+        else if (alert.deptCode === '38') {
+            const hasRouteBarreeInTitle = titleLower.includes('route barrée') || titleLower.includes('route barree');
+            const hasRouteBarreeInCross = crossLower.includes('route barrée') || crossLower.includes('route barree');
+            const defaultNoDesc = !alert.cross || alert.cross === "Aucun détail." || alert.cross.trim() === "";
+
+            if (hasRouteBarreeInCross && !defaultNoDesc) {
+                severity = 'danger'; // Présent en description -> Montée en 1 (Rouge)
+            } else if (hasRouteBarreeInTitle || (hasRouteBarreeInCross && defaultNoDesc)) {
+                severity = 'warning'; // Titre ou sans description -> Classé en 2 (Orange)
+            } else {
+                severity = alert.originalSeverity || 'warning';
+            }
+        } 
+        // Autres départements
+        else {
+            const closureKeywords = ['coupé', 'coupee', 'coupée', 'fermeture', 'barré', 'barrée', 'fermé', 'fermée'];
+            const hasClosure = closureKeywords.some(kw => crossLower.includes(kw) || titleLower.includes(kw));
+            if (hasClosure) {
+                severity = 'danger';
+            } else {
+                severity = alert.originalSeverity || 'warning';
+            }
+        }
+
+        alert.computedSeverity = severity;
+
+        // 3. LOGIQUE DE FILTRAGE DES ALERTES BLANCHES (LISTE NOIRE)
+        // Masqué par défaut sauf si case cochée OU si choix explicite dans le sélecteur de gravité
+        if (alert.computedSeverity === 'blacklist') {
+            if (!isShowBlacklistChecked && selectedSeverity !== 'blacklist') {
+                return false; 
+            }
+        }
+
+        // 4. LOGIQUE DE FILTRAGE DES UI CLASSIQUES
         const matchSearch = titleLower.includes(searchQuery) || crossLower.includes(searchQuery);
         const matchDept = selectedDept === 'all' || alert.deptCode === selectedDept;
         
@@ -200,28 +280,25 @@ function renderAlerts() {
         if (selectedType === 'all') {
             matchType = true;
         } else if (selectedType === 'Alternat') {
-            matchType = calculatedType === 'Alternat';
+            matchType = alert.computedCategory === 'Alternat';
         } else if (selectedType === 'Fermeture') {
-            matchType = calculatedType === 'Fermeture' || alert.type.toLowerCase().includes('ferm');
+            matchType = alert.computedCategory === 'Fermeture' || alert.type.toLowerCase().includes('ferm');
         } else {
             matchType = alert.type.toLowerCase().includes(selectedType.toLowerCase());
         }
 
-        const matchSeverity = selectedSeverity === 'all' || alert.severity === selectedSeverity;
+        const matchSeverity = selectedSeverity === 'all' || alert.computedSeverity === selectedSeverity;
 
         if (!matchSearch || !matchDept || !matchType || !matchSeverity) return false;
 
-        // Extraction temporelle adaptative
         const alertStartDate = parseAlertDate(alert.updated);
 
-        // 4. Filtrage dynamique "Actif en ce moment"
         if (currentOnly) {
             if (alertStartDate && alertStartDate > now) return false;
             const actualEndDate = extractEndDate(alert.cross);
             if (actualEndDate && actualEndDate < now) return false;
         }
 
-        // 5. Borne de sélection : Date de Début
         if (startTargetStr && alertStartDate) {
             const target = new Date(startTargetStr);
             target.setHours(0, 0, 0, 0);
@@ -232,7 +309,6 @@ function renderAlerts() {
             if (startLogic === 'after_or_on' && compDate < target) return false;
         }
 
-        // 6. Borne de sélection : Date de Fin
         if (endTargetStr) {
             const actualEndDate = extractEndDate(alert.cross);
             if (!actualEndDate) return false; 
@@ -246,20 +322,16 @@ function renderAlerts() {
             if (endLogic === 'after_or_on' && compDate < target) return false;
         }
 
-        // Injection du type recalculé pour affichage dynamique sur les cartes
-        alert.computedCategory = calculatedType;
         return true;
     });
 
-    // 7. Tri par défaut par Date de Début Croissant (avec Fallback sur date d'apparition du flux si non spécifiée)
+    // Tri temporel basé sur sortAscending (Décroissant par défaut)
     filtered.sort((a, b) => {
         const dateA = parseAlertDate(a.updated) || (a.discoveredAt ? new Date(a.discoveredAt) : new Date(0));
         const dateB = parseAlertDate(b.updated) || (b.discoveredAt ? new Date(b.discoveredAt) : new Date(0));
-        
         return sortAscending ? dateA - dateB : dateB - dateA;
     });
 
-    // Rendu dynamique de la grille
     alertsGrid.innerHTML = '';
 
     if (filtered.length === 0) {
@@ -268,34 +340,134 @@ function renderAlerts() {
         return;
     }
 
-    filtered.forEach(alert => {
-        const card = document.createElement('div');
-        card.className = `card ${alert.severity || 'warning'}`;
-        
-        // Détermination des labels visuels
-        const displayType = alert.computedCategory === 'Alternat' ? '🚧 TRAVAUX (Alternat / Restr.)' : `⛔ ${alert.type.toUpperCase()}`;
-        const hasDate = parseAlertDate(alert.updated) !== null;
-        const creationInfo = alert.discoveredAt ? `Apparition flux : ${new Date(alert.discoveredAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : 'Apparition : Date inconnue';
-
-        card.innerHTML = `
-            <div class="card-header">
-                <span class="card-type">${displayType}</span>
-                <span class="card-dept">Dép. ${alert.deptCode}</span>
-            </div>
-            <div class="card-title">${alert.title}</div>
-            <div class="card-body" style="white-space: pre-wrap;">${alert.cross}</div>
-            <div class="card-footer">
-                <div>${hasDate ? `Début / Maj : ${formatDisplayDate(alert.updated)}` : '⚠️ Début / Maj : Non spécifié sur l\'alerte'}</div>
-                <div class="creation-badge">⏱️ ${creationInfo}</div>
-            </div>
-        `;
-        alertsGrid.appendChild(card);
-    });
+    if (currentView === 'grid') {
+        renderGridView(filtered);
+    } else {
+        renderTableView(filtered);
+    }
 
     updateStats(filtered.length, filtered);
 }
 
-// Traitement textuel des dates provenant des APIs partenaires
+function renderGridView(alerts) {
+    alertsGrid.className = "alerts-grid";
+    
+    alerts.forEach(alert => {
+        const card = document.createElement('div');
+        card.className = `card ${alert.computedSeverity}`;
+        
+        const isBl = alert.computedSeverity === 'blacklist';
+        const displayType = isBl ? '🏳️ SUSPECT (Filtré Liste Noire)' : (alert.computedCategory === 'Alternat' ? '🚧 TRAVAUX (Alternat)' : `⛔ ${alert.type.toUpperCase()}`);
+        const hasDate = parseAlertDate(alert.updated) !== null;
+        const creationInfo = alert.discoveredAt ? `Flux : ${new Date(alert.discoveredAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : 'Flux : Inconnu';
+
+        let wmeActionHtml = '';
+        if (alert.lat && alert.lon) {
+            const wmeProd = `https://waze.com/fr/editor?env=row&lat=${alert.lat}&lon=${alert.lon}&zoomLevel=19`;
+            const wmeBeta = `https://beta.waze.com/fr/editor?env=row&lat=${alert.lat}&lon=${alert.lon}&zoomLevel=19`;
+            wmeActionHtml = `
+                <div class="wme-actions">
+                    <a href="${wmeProd}" target="_blank" class="btn-wme wme-prod">WME Production</a>
+                    <a href="${wmeBeta}" target="_blank" class="btn-wme wme-beta">WME Beta</a>
+                </div>
+            `;
+        }
+
+        // Règle 4 : Si blanc, affichage épuré anti-pollution (Uniquement le titre)
+        if (isBl) {
+            card.innerHTML = `
+                <div class="card-header">
+                    <span class="card-type">${displayType}</span>
+                    <span class="card-dept">Dép. ${alert.deptCode}</span>
+                </div>
+                <div class="card-title" style="color: var(--text-muted); font-size: 0.95rem; font-style: italic;">[Masqué] ${alert.title}</div>
+                <div class="card-footer" style="margin-top:auto;">
+                    <div class="creation-badge">⏱️ ${creationInfo}</div>
+                    ${wmeActionHtml}
+                </div>
+            `;
+        } else {
+            card.innerHTML = `
+                <div class="card-header">
+                    <span class="card-type">${displayType}</span>
+                    <span class="card-dept">Dép. ${alert.deptCode}</span>
+                </div>
+                <div class="card-title">${alert.title}</div>
+                <div class="card-body" style="white-space: pre-wrap;">${alert.cross}</div>
+                <div class="card-footer">
+                    <div>${hasDate ? `Début / Maj : ${formatDisplayDate(alert.updated)}` : '⚠️ Début / Maj : Non spécifié'}</div>
+                    <div class="creation-badge">⏱️ ${creationInfo}</div>
+                    ${wmeActionHtml}
+                </div>
+            `;
+        }
+        alertsGrid.appendChild(card);
+    });
+}
+
+function renderTableView(alerts) {
+    alertsGrid.className = "";
+    
+    const container = document.createElement('div');
+    container.className = "tc-table-container";
+
+    let rowsHtml = '';
+    alerts.forEach(alert => {
+        let severityClass = 'row-warning';
+        if (alert.computedSeverity === 'danger') severityClass = 'row-danger';
+        else if (alert.computedSeverity === 'info') severityClass = 'row-info';
+        else if (alert.computedSeverity === 'blacklist') severityClass = 'row-blacklist';
+        
+        let actionsHtml = '<i>Pas de géoloc</i>';
+        if (alert.lat && alert.lon) {
+            const wmeProd = `https://waze.com/fr/editor?env=row&lat=${alert.lat}&lon=${alert.lon}&zoomLevel=19`;
+            const wmeBeta = `https://beta.waze.com/fr/editor?env=row&lat=${alert.lat}&lon=${alert.lon}&zoomLevel=19`;
+            actionsHtml = `
+                <div class="table-actions">
+                    <a href="${wmeProd}" target="_blank" class="btn-wme-xs wme-prod" title="Ouvrir Production">PRO</a>
+                    <a href="${wmeBeta}" target="_blank" class="btn-wme-xs wme-beta" title="Ouvrir Beta">BETA</a>
+                </div>
+            `;
+        }
+
+        const isBl = alert.computedSeverity === 'blacklist';
+        const displayCross = isBl ? '<span style="color:var(--text-muted); font-style:italic;">Masqué (Liste Noire)</span>' : alert.cross;
+
+        rowsHtml += `
+            <tr class="${severityClass}">
+                <td style="font-weight:bold; text-align:center;">${alert.deptCode}</td>
+                <td><strong>${isBl ? 'Blacklist' : alert.computedCategory}</strong></td>
+                <td>
+                    <div style="font-weight:600; color:${isBl ? 'var(--text-muted)' : '#fff'};">${alert.title}</div>
+                    <div style="font-size:0.75rem; color:#aaa; max-height:40px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                        ${displayCross}
+                    </div>
+                </td>
+                <td style="font-size:0.75rem; white-space:nowrap;">${formatDisplayDate(alert.updated)}</td>
+                <td>${actionsHtml}</td>
+            </tr>
+        `;
+    });
+
+    container.innerHTML = `
+        <table class="tc-table">
+            <thead>
+                <tr>
+                    <th style="width:50px; text-align:center;">Dép</th>
+                    <th style="width:100px;">Nature</th>
+                    <th>Événement & Description</th>
+                    <th style="width:130px;">Début / Màj</th>
+                    <th style="width:110px;">Éditeur WME</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${rowsHtml}
+            </tbody>
+        </table>
+    `;
+    alertsGrid.appendChild(container);
+}
+
 function parseAlertDate(dateStr) {
     if (!dateStr || dateStr.includes("non spécifiée")) return null;
     const isoTimestamp = Date.parse(dateStr);
@@ -333,14 +505,34 @@ function formatDisplayDate(dateStr) {
     return parsed.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
+// --- MISE À JOUR COMPACTE DES STATISTIQUES AVEC COULEURS ---
 function updateStats(totalCount, filteredAlerts) {
     statTotal.textContent = totalCount;
+    
+    // Initialisation des compteurs analytiques
+    let countsSeverity = { danger: 0, warning: 0, info: 0, blacklist: 0 };
+    const countsDept = {};
+
+    filteredAlerts.forEach(a => {
+        // Compteur Gravité
+        if (countsSeverity[a.computedSeverity] !== undefined) countsSeverity[a.computedSeverity]++;
+        // Compteur Département
+        countsDept[a.deptCode] = (countsDept[a.deptCode] || 0) + 1;
+    });
+
+    // Injection visuelle de la matrice des couleurs
+    statsBySeverity.innerHTML = `
+        <div class="severity-stat-badge" title="Bloquant Impératif">🔴 <strong>${countsSeverity.danger}</strong></div>
+        <div class="severity-stat-badge" title="À vérifier / Partiel">🟠 <strong>${countsSeverity.warning}</strong></div>
+        <div class="severity-stat-badge" title="Informatif / Mineur">🔘 <strong>${countsSeverity.info}</strong></div>
+        <div class="severity-stat-badge" title="Liste Noire">⚪ <strong>${countsSeverity.blacklist}</strong></div>
+    `;
+
+    // Injection des départements triés par volume décroissant
     statsByDept.innerHTML = '';
+    const sortedDepts = Object.entries(countsDept).sort((a, b) => b[1] - a[1]);
 
-    const counts = {};
-    filteredAlerts.forEach(a => counts[a.deptCode] = (counts[a.deptCode] || 0) + 1);
-
-    for (const [dept, count] of Object.entries(counts)) {
+    for (const [dept, count] of sortedDepts) {
         const tag = document.createElement('span');
         tag.className = 'dept-tag-stat';
         tag.innerHTML = `📍 <strong>${dept}</strong> : ${count}`;

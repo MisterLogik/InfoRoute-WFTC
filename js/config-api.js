@@ -30,17 +30,19 @@ export const DEPARTEMENTS_CONFIG = {
         name: "Haute-Savoie",
         format: "turbolead-geojson",
         sources: [
-            { url: 'https://www.inforoute74.fr/mod_turbolead/mod/inforoute/index.php?action=376', name: 'Fermetures' },
-            { url: 'https://www.inforoute74.fr/mod_turbolead/mod/inforoute/index.php?action=374', name: 'Alertes' }
+            { url: 'https://www.inforoute74.fr/mod_turbolead/mod/inforoute/index.php?action=367&layer=layer-deviation', name: 'Déviation' },
+            { url: 'https://www.inforoute74.fr/mod_turbolead/mod/inforoute/index.php?action=367&layer=layer-repere_autre', name: 'Autre' },
+            { url: 'https://www.inforoute74.fr/mod_turbolead/mod/inforoute/index.php?action=367&layer=layer-repere_travaux', name: 'Travaux' }
         ]
     }
 };
 
-// Mots-clés à filtrer (Liste noire issue de votre script)
+// Mots-clés définissant une fausse alerte à nettoyer (Règle 4)
 export const BLACKLIST_KEYWORDS = [
-    "Etat route :",
-    "Station de Ski -",
-    "Restriction de Hauteur",
-    "Restrictions de tonnage",
-    "Transit Intertid"
+    "test",
+    "exercice",
+    "sans objet",
+    "démonstration",
+    "test_waze",
+    "bouchon fantome"
 ];

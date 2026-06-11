@@ -27,7 +27,7 @@
                 <button id="btn-reset-filters" class="btn-reset" title="Réinitialiser les filtres">✖ Effacer</button>
             </div>
 
-            <button id="btn-toggle-sort" class="btn-sort">⬇️ Tri : Date de début (Croissant)</button>
+            <button id="btn-toggle-sort" class="btn-sort">⬇️ Tri : Date de début (Décroissant)</button>
 
             <div class="quick-actions">
                 <button id="btn-quick-today" class="btn-quick">📅 Aujourd'hui</button>
@@ -60,12 +60,21 @@
             </div>
 
             <div class="filter-group">
-                <label for="filter-severity">Gravité / Impact Waze</label>
+                <label for="filter-severity">Gravité / Impact Analytique</label>
                 <select id="filter-severity">
                     <option value="all">Tous les impacts</option>
-                    <option value="danger">🔴 Bloquant / Majeur (Danger)</option>
-                    <option value="warning">🟡 Partiel / Mineur (Warning)</option>
+                    <option value="danger">🔴 Rouge : Bloquant Impératif</option>
+                    <option value="warning">🟠 Orange : Fermeture à vérifier</option>
+                    <option value="info">🔘 Gris : Alternat / Mineur</option>
+                    <option value="blacklist">⚪ Blanc : Suspect (Blacklist)</option>
                 </select>
+            </div>
+
+            <div class="filter-group">
+                <label class="checkbox-container">
+                    <input type="checkbox" id="filter-show-blacklist">
+                    👁️ Afficher les alertes liste noire (Blanc)
+                </label>
             </div>
 
             <div class="filter-group border-top-dash">
@@ -100,11 +109,20 @@
             <div class="stats-box">
                 <h3>Statistiques</h3>
                 <p>Alertes affichées : <strong id="stat-total">0</strong></p>
+                <div id="stats-by-severity" class="stats-severity-container"></div>
+                <hr class="mini-spacer">
                 <div id="stats-by-dept"></div>
             </div>
         </aside>
 
         <main class="content-area">
+            <div class="content-toolbar">
+                <div class="view-switcher">
+                    <button id="btn-view-grid" class="btn-view-toggle active" title="Vue Grille">⣿ Cartes</button>
+                    <button id="btn-view-table" class="btn-view-toggle" title="Vue Tableau">⌸ Tableau</button>
+                </div>
+            </div>
+
             <div id="loader" class="loader hidden">Chargement et normalisation des flux Inforoute...</div>
             
             <div id="alerts-grid" class="alerts-grid">
