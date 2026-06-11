@@ -18,56 +18,20 @@ export async function fetchDeptData(deptCode) {
 
 // --- MOTEUR 1 : Isère (38) & Haute-Savoie (74) ---
 async function fetchTurboleadData(deptCode, sources) {
-    let combinedAlerts = [];
-
     const promises = sources.map(async (source) => {
-        // Liste des proxies gratuits disponibles
-        // Proxy A : AllOrigins (Demande un JSON.parse de .contents)
-        // Proxy B : Cors.bridge / htmldriven (Renvoie le JSON brut directement, sans encapsulation)
-        const urlProxyA = `https://api.allorigins.win/get?url=${encodeURIComponent(source.url)}`;
-        const urlProxyB = `https://corsproxy.io/?${encodeURIComponent(source.url)}`;
-
-        let response;
-        let useProxyB = false;
-
         try {
-            // TENTATIVE 1 : On essaie avec Proxy A (AllOrigins)
-            response = await fetch(urlProxyA);
+            // !!! LA CORRECTION EST ICI !!!
+            // Au lieu de fetch(source.url), on passe l'URL originale en paramètre à votre Worker
+            const urlViaWorker = `https://hub-inforoutefrance.xtremxlogik.workers.dev/?url=${encodeURIComponent(source.url)}`;
             
-            // Si AllOrigins renvoie une erreur 500/520 (votre cas actuel), on force le passage au Catch
-            if (!response.ok || response.status >= 500) {
-                throw new Error(`AllOrigins en échec (Code ${response.status}), bascule sur le proxy de secours.`);
+            const response = await fetch(urlViaWorker);
+            
+            if (!response.ok) {
+                throw new Error(`Erreur serveur proxy: ${response.status}`);
             }
-        } catch (err) {
-            console.warn(`[Proxy Principal Échoué] ${source.name} :`, err.message);
-            try {
-                // TENTATIVE 2 : Secours immédiat sur CorsProxy.io (Très performant)
-                response = await fetch(urlProxyB);
-                if (!response.ok) return [];
-                useProxyB = true; // On lève un drapeau car la structure de réponse sera différente
-            } catch (errFallback) {
-                console.error(`[Proxy Secours Échoué] Impossible de charger ${source.name}`, errFallback);
-                return [];
-            }
-        }
 
-        try {
-            let geojson;
-
-            if (useProxyB) {
-                // CorsProxy.io renvoie directement le fichier JSON de la cible sans l'envelopper
-                geojson = await response.json();
-            } else {
-                // Traitement standard AllOrigins
-                const wrapper = await response.json();
-                if (!wrapper || !wrapper.contents) return [];
-                
-                if (wrapper.contents.trim().startsWith('<!DOCTYPE') || wrapper.contents.trim().startsWith('<html')) {
-                    console.warn(`[Dept ${deptCode}] HTML détecté via AllOrigins pour "${source.name}".`);
-                    return [];
-                }
-                geojson = JSON.parse(wrapper.contents);
-            }
+            // Votre worker renvoie directement le vrai fichier JSON sans l'envelopper
+            const geojson = await response.json();
             
             if (!geojson || !geojson.features || !Array.isArray(geojson.features)) return [];
 
@@ -92,7 +56,7 @@ async function fetchTurboleadData(deptCode, sources) {
                 };
             });
         } catch (e) {
-            console.warn(`Erreur lors du traitement des données de la source: ${source.name}`, e);
+            console.warn(`Impossible de charger la source Turbolead: ${source.name}`, e);
             return [];
         }
     });
