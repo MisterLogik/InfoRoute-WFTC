@@ -168,4 +168,6 @@ function gmPostJson(url, body) {
             'X-Requested-With': 'XMLHttpRequest',
             'Accept': 'application/json, text/javascript, */*; q=0.01'
         },
-        body:
+        body: JSON.stringify(body)
+    }).then(res => res.json());
+}
