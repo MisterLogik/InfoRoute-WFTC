@@ -21,30 +21,55 @@ async function fetchTurboleadData(deptCode, sources) {
     let combinedAlerts = [];
 
     const promises = sources.map(async (source) => {
+        // Liste des proxies gratuits disponibles
+        // Proxy A : AllOrigins (Demande un JSON.parse de .contents)
+        // Proxy B : Cors.bridge / htmldriven (Renvoie le JSON brut directement, sans encapsulation)
+        const urlProxyA = `https://api.allorigins.win/get?url=${encodeURIComponent(source.url)}`;
+        const urlProxyB = `https://corsproxy.io/?${encodeURIComponent(source.url)}`;
+
+        let response;
+        let useProxyB = false;
+
         try {
-            // Intégration du proxy AllOrigins pour contourner le CORS en GET
-            const urlProxy = `https://api.allorigins.win/get?url=${encodeURIComponent(source.url)}`;
-
-            const response = await fetch(urlProxy, {
-                method: 'GET'
-                // Note: Les headers spécifiques (X-Requested-With) sont retirés car AllOrigins fait la requête intermédiaire de serveur à serveur
-            });
-
-            if (!response.ok) return [];
-
-            const wrapper = await response.json();
-            // AllOrigins place la réponse brute dans la propriété .contents
-            if (!wrapper.contents) return [];
-
-            // Sécurité additionnelle : on s'assure que la réponse n'est pas du HTML avant de parser
-            if (wrapper.contents.trim().startsWith('<!DOCTYPE') || wrapper.contents.trim().startsWith('<html')) {
-                console.warn(`[Dept ${deptCode}] La source "${source.name}" a renvoyé du HTML via le proxy.`);
+            // TENTATIVE 1 : On essaie avec Proxy A (AllOrigins)
+            response = await fetch(urlProxyA);
+            
+            // Si AllOrigins renvoie une erreur 500/520 (votre cas actuel), on force le passage au Catch
+            if (!response.ok || response.status >= 500) {
+                throw new Error(`AllOrigins en échec (Code ${response.status}), bascule sur le proxy de secours.`);
+            }
+        } catch (err) {
+            console.warn(`[Proxy Principal Échoué] ${source.name} :`, err.message);
+            try {
+                // TENTATIVE 2 : Secours immédiat sur CorsProxy.io (Très performant)
+                response = await fetch(urlProxyB);
+                if (!response.ok) return [];
+                useProxyB = true; // On lève un drapeau car la structure de réponse sera différente
+            } catch (errFallback) {
+                console.error(`[Proxy Secours Échoué] Impossible de charger ${source.name}`, errFallback);
                 return [];
             }
+        }
 
-            const geojson = JSON.parse(wrapper.contents);
+        try {
+            let geojson;
+
+            if (useProxyB) {
+                // CorsProxy.io renvoie directement le fichier JSON de la cible sans l'envelopper
+                geojson = await response.json();
+            } else {
+                // Traitement standard AllOrigins
+                const wrapper = await response.json();
+                if (!wrapper || !wrapper.contents) return [];
+                
+                if (wrapper.contents.trim().startsWith('<!DOCTYPE') || wrapper.contents.trim().startsWith('<html')) {
+                    console.warn(`[Dept ${deptCode}] HTML détecté via AllOrigins pour "${source.name}".`);
+                    return [];
+                }
+                geojson = JSON.parse(wrapper.contents);
+            }
             
-            if (!geojson.features || !Array.isArray(geojson.features)) return [];
+            if (!geojson || !geojson.features || !Array.isArray(geojson.features)) return [];
 
             return geojson.features.map((feat, index) => {
                 const props = feat.properties || {};
@@ -67,7 +92,7 @@ async function fetchTurboleadData(deptCode, sources) {
                 };
             });
         } catch (e) {
-            console.warn(`Impossible de charger la source Turbolead: ${source.name}`, e);
+            console.warn(`Erreur lors du traitement des données de la source: ${source.name}`, e);
             return [];
         }
     });
@@ -155,30 +180,16 @@ function cleanText(str) {
         .trim();
 }
 
-// Modification majeure : Simulation d'un POST à travers le proxy AllOrigins (uniquement GET) via les Query Parameters de AllOrigins
 function gmPostJson(url, body) {
-    // AllOrigins n'acceptant pas la méthode POST directe, on utilise leur proxy standard. 
-    // Heureusement, l'API Savoie accepte de recevoir ses paramètres en payload s'ils passent par l'infrastructure AllOrigins,
-    // mais pour être certain que la requête finale parte en POST depuis les serveurs d'AllOrigins vers la Savoie,
-    // on utilise l'astuce de l'envoi classique via fetch configuré si le proxy le supporte, ou l'encapsulation.
-    
-    // Version optimisée AllOrigins :
-    const urlProxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}&disableCache=true`;
-    
-    // Afin de simuler un POST sur une API structurée comme celle de la Savoie à travers un proxy gratuit, 
-    // on passe les données via un fetch classique. Si l'API Savoie requiert impérativement du POST strict :
+    // Si échec direct en raison du CORS, on passe par un déroutement via CorsProxy.io pour le GET simulé
     return fetch(url, {
         method: 'POST',
-        headers: { 
-            'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
     }).catch(() => {
-        // En cas d'échec CORS direct (ce qui arrivera sur GitHub Pages), on bascule sur le déroutement GET d'AllOrigins 
-        // Si l'API distante de Savoie-route est tolérante ou si on passe par un pont :
-        return fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url + '?id=' + (body.id || body.idAll || ''))}`);
+        const fallBackUrl = `https://corsproxy.io/?${encodeURIComponent(url + '?id=' + (body.id || body.idAll || ''))}`;
+        return fetch(fallBackUrl);
     }).then(async (res) => {
-        // Décodage intelligent selon que la réponse vient directement (local) ou du proxy (production GitHub)
         const rawData = await res.json();
         if (rawData.contents) {
             return JSON.parse(rawData.contents);
