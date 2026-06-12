@@ -398,6 +398,27 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.8); cur
     gap: 5px;
 }
 
+/* --- BOUTON RETOUR HUB (HEADER) --- */
+.btn-hub-back {
+    background-color: #2c2c35;
+    color: #ffffff;
+    border: 1px solid var(--border-color);
+    padding: 6px 12px;
+    border-radius: 4px;
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.btn-hub-back:hover {
+    background-color: #3d3d4a;
+    border-color: var(--waze-blue);
+}
+
 .stats-box { margin-top: 20px; padding: 15px; background-color: #1a1a1a; border-radius: 6px; border: 1px solid var(--border-color); }
 .stats-box h3 { margin-top: 0; font-size: 0.9rem; }
 .stats-box p { font-size: 0.85rem; margin: 5px 0; }
