@@ -1,5 +1,10 @@
 import { DEPARTEMENTS_CONFIG, SAVOIE_CATEGORIES } from './config-api.js';
 
+// Détection automatique du contexte (Local vs Cloudflare de prod)
+const PROXY_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'https://ton-subdomaine-cloudflare.workers.dev/api-proxy/' // Si tu testes en local sans wrangler (Mettre l'URL définitive de ton worker)
+    : '/api-proxy/'; // En prod sur Cloudflare Pages, le routage est relatif !
+
 export async function fetchDeptData(deptCode) {
     const config = DEPARTEMENTS_CONFIG[deptCode];
     if (!config) return [];
@@ -18,35 +23,31 @@ export async function fetchDeptData(deptCode) {
 
 // --- MOTEUR 1 : Isère (38) & Haute-Savoie (74) ---
 async function fetchTurboleadData(deptCode, sources) {
+    let combinedAlerts = [];
+
     const promises = sources.map(async (source) => {
         try {
-            // CORRECTION: Utilisation d'une URL relative car le Worker est sur le même domaine
-            const urlViaWorker = `/?url=${encodeURIComponent(source.url)}`;
+            // Modification ici : Routage à travers le proxy CORS
+            const targetUrl = PROXY_BASE + source.url;
             
-            const response = await fetch(urlViaWorker, {
+            const response = await fetch(targetUrl, {
                 method: 'GET',
                 headers: {
-                    // Signale aux serveurs distants qu'il s'agit d'une requête AJAX légitime
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Accept': 'application/json, text/javascript, */*; q=0.01'
+                    'Accept': 'application/json, text/javascript, */*; q=0.01',
+                    'X-Requested-With': 'XMLHttpRequest'
                 }
             });
-            
-            if (!response.ok) {
-                throw new Error(`Erreur serveur proxy: ${response.status}`);
-            }
 
-            const rawText = await response.text();
+            if (!response.ok) return [];
 
-            // Sécurité anti-HTML : si le serveur renvoie une page d'erreur ou d'accueil HTML au lieu du JSON
-            if (rawText.trim().startsWith('<!DOCTYPE') || rawText.trim().startsWith('<html')) {
-                console.warn(`[Dept ${deptCode}] La source "${source.name}" a renvoyé du HTML au lieu de JSON.`);
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('text/html')) {
+                console.warn(`[Dept ${deptCode}] La source "${source.name}" a renvoyé du HTML via le Proxy.`);
                 return [];
             }
 
-            const geojson = JSON.parse(rawText);
-            
-            if (!geojson || !geojson.features || !Array.isArray(geojson.features)) return [];
+            const geojson = await response.json();
+            if (!geojson.features || !Array.isArray(geojson.features)) return [];
 
             return geojson.features.map((feat, index) => {
                 const props = feat.properties || {};
@@ -85,12 +86,14 @@ async function fetchSavoieApiData(deptCode, apiBaseUrl) {
 
     for (const catId of categoryIds) {
         try {
-            const list = await gmPostJson(apiBaseUrl, { id: parseInt(catId) });
-            if (!list || !Array.isArray(list)) continue;
+            // Modification ici : Routage à travers le proxy CORS
+            const list = await gmPostJson(PROXY_BASE + apiBaseUrl, { id: parseInt(catId) });
+            if (!Array.isArray(list)) continue;
 
             for (const item of list) {
                 try {
-                    const detail = await gmPostJson(`${apiBaseUrl}/allData`, { idAll: item.idtInfo });
+                    // Modification ici : Routage à travers le proxy CORS
+                    const detail = await gmPostJson(`${PROXY_BASE}${apiBaseUrl}/allData`, { idAll: item.idtInfo });
                     
                     let d = detail;
                     if (detail && detail.Detail_allData && Array.isArray(detail.Detail_allData)) d = detail.Detail_allData[0];
@@ -139,7 +142,7 @@ async function fetchSavoieApiData(deptCode, apiBaseUrl) {
     return alerts;
 }
 
-// --- UTILS : Nettoyage et requêtes POST ---
+// --- UTILS ---
 function cleanText(str) {
     if (!str) return '';
     return String(str)
@@ -158,16 +161,12 @@ function cleanText(str) {
 }
 
 function gmPostJson(url, body) {
-    // CORRECTION: Utilisation d'une URL relative également pour les requêtes POST (Savoie)
-    const urlViaWorker = `/?url=${encodeURIComponent(url)}`;
-    
-    return fetch(urlViaWorker, {
+    return fetch(url, {
         method: 'POST',
-        headers: { 
-            'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest',
-            'Accept': 'application/json, text/javascript, */*; q=0.01'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
-    }).then(res => res.json());
+    }).then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+    });
 }
