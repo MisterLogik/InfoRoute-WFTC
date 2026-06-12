@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HUB InfoRoute France (TeamClosure)</title>
+    <link rel="stylesheet" href="cst-style.css">
+</head>
+<body>
+
+    <header class="main-header">
+        <div class="logo-zone">
+            <span class="waze-ghost">🔹</span>
+            <h1>HUB InfoRoute France (TeamClosure)</h1>
+        </div>
+        <div class="sync-zone">
+            <button id="btn-sync-all" class="btn-primary">🔄 Synchroniser tout</button>
+            <span id="sync-status">Dernière synchro : Jamais</span>
+        </div>
+    </header>
+
+    <div class="app-container">
+        
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>Filtres</h2>
+                <button id="btn-reset-filters" class="btn-reset" title="Réinitialiser les filtres">✖ Effacer</button>
+            </div>
+
+            <button id="btn-toggle-sort" class="btn-sort">⬇️ Tri : Date de début (Décroissant)</button>
+
+            <div class="quick-actions">
+                <button id="btn-quick-today" class="btn-quick">📅 Aujourd'hui</button>
+                <button id="btn-quick-tomorrow" class="btn-quick">🚀 Demain</button>
+            </div>
+            
+            <div class="filter-group">
+                <label for="search-bar">Recherche textuelle</label>
+                <input type="text" id="search-bar" placeholder="Ex: A43, Col, Fermé...">
+            </div>
+
+            <div class="filter-group">
+                <label for="filter-dept">Département</label>
+                <select id="filter-dept">
+                    <option value="all">Tous les départements</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label for="filter-type">Nature du blocage</label>
+                <select id="filter-type">
+                    <option value="all">Tous les types</option>
+                    <option value="Fermeture">⛔ Fermeture / Blocage Total</option>
+                    <option value="Alternat">🚧 Travaux avec Alternat / Restriction</option>
+                    <option value="Accident">💥 Accident / Incident</option>
+                    <option value="Météo">❄️ Météo / Viabilité</option>
+                    <option value="Déviation">↔️ Déviation</option>
+                    <option value="Bouchon">🚗 Bouchon / Ralentissement</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label for="filter-severity">Gravité / Impact Analytique</label>
+                <select id="filter-severity">
+                    <option value="all">Tous les impacts</option>
+                    <option value="danger">🔴 Rouge : Bloquant Impératif</option>
+                    <option value="warning">🟠 Orange : Fermeture à vérifier</option>
+                    <option value="info">🔘 Gris : Alternat / Mineur</option>
+                    <option value="blacklist">⚪ Blanc : Suspect (Blacklist)</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label class="checkbox-container">
+                    <input type="checkbox" id="filter-show-blacklist">
+                    👁️ Afficher les alertes liste noire (Blanc)
+                </label>
+            </div>
+
+            <div class="filter-group border-top-dash">
+                <label>📅 Sélection Bornée (Avant / Après)</label>
+                
+                <label class="checkbox-container">
+                    <input type="checkbox" id="filter-current-only">
+                     Actif en ce moment même
+                </label>
+                
+                <hr class="mini-spacer">
+
+                <label for="filter-date-start" class="sub-label">Date de Début :</label>
+                <div class="flex-row">
+                    <select id="filter-date-start-logic" class="select-sm">
+                        <option value="before_or_on">🗓️ Avant ou le</option>
+                        <option value="after_or_on">🗓️ Après ou le</option>
+                    </select>
+                    <input type="date" id="filter-date-start">
+                </div>
+
+                <label for="filter-date-end" class="sub-label">Date de Fin :</label>
+                <div class="flex-row">
+                    <select id="filter-date-end-logic" class="select-sm">
+                        <option value="before_or_on">🏁 Avant ou le</option>
+                        <option value="after_or_on">🏁 Après ou le</option>
+                    </select>
+                    <input type="date" id="filter-date-end">
+                </div>
+            </div>
+
+            <div class="stats-box">
+                <h3>Statistiques</h3>
+                <p>Alertes affichées : <strong id="stat-total">0</strong></p>
+                <div id="stats-by-severity" class="stats-severity-container"></div>
+                <hr class="mini-spacer">
+                <div id="stats-by-dept"></div>
+            </div>
+        </aside>
+
+        <main class="content-area">
+            <div class="content-toolbar">
+                <div class="view-switcher">
+                    <button id="btn-view-grid" class="btn-view-toggle active" title="Vue Grille">⣿ Cartes</button>
+                    <button id="btn-view-table" class="btn-view-toggle" title="Vue Tableau">⌸ Tableau</button>
+                </div>
+            </div>
+
+            <div id="loader" class="loader hidden">Chargement et normalisation des flux Inforoute...</div>
+            
+            <div id="alerts-grid" class="alerts-grid">
+                <div class="empty-state">
+                    Aucune donnée chargée. Cliquez sur "Synchroniser tout" pour récupérer les flux en direct.
+                </div>
+            </div>
+        </main>
+
+    </div>
+
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>
