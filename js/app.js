@@ -10,8 +10,12 @@ let currentView = 'grid';
 const btnSyncAll = document.getElementById('btn-sync-all');
 const btnResetFilters = document.getElementById('btn-reset-filters');
 const btnToggleSort = document.getElementById('btn-toggle-sort');
+
+// Nouveaux boutons temporels
 const btnQuickToday = document.getElementById('btn-quick-today');
-const btnQuickTomorrow = document.getElementById('btn-quick-tomorrow');
+const btnQuickWeek = document.getElementById('btn-quick-week');
+const btnQuickNextWeek = document.getElementById('btn-quick-next-week');
+const btnQuickMonth = document.getElementById('btn-quick-month');
 
 const btnViewGrid = document.getElementById('btn-view-grid');
 const btnViewTable = document.getElementById('btn-view-table');
@@ -20,7 +24,7 @@ const syncStatus = document.getElementById('sync-status');
 const filterDept = document.getElementById('filter-dept');
 const filterType = document.getElementById('filter-type');
 const filterSeverity = document.getElementById('filter-severity');
-const filterShowBlacklist = document.getElementById('filter-show-blacklist'); // Case Liste Noire
+const filterShowBlacklist = document.getElementById('filter-show-blacklist'); 
 
 const filterCurrentOnly = document.getElementById('filter-current-only');
 const filterDateStart = document.getElementById('filter-date-start');
@@ -32,7 +36,7 @@ const searchBar = document.getElementById('search-bar');
 const alertsGrid = document.getElementById('alerts-grid');
 const loader = document.getElementById('loader');
 const statTotal = document.getElementById('stat-total');
-const statsBySeverity = document.getElementById('stats-by-severity'); // Zone Couleur Stats
+const statsBySeverity = document.getElementById('stats-by-severity'); 
 const statsByDept = document.getElementById('stats-by-dept');
 
 // --- Initialisation ---
@@ -56,8 +60,11 @@ function setupEventListeners() {
     btnResetFilters.addEventListener('click', resetAllFilters);
     btnToggleSort.addEventListener('click', toggleSortOrder);
     
+    // Nouveaux Listeners Temporels
     btnQuickToday.addEventListener('click', setFilterToday);
-    btnQuickTomorrow.addEventListener('click', setFilterTomorrow);
+    btnQuickWeek.addEventListener('click', setFilterWeek);
+    btnQuickNextWeek.addEventListener('click', setFilterNextWeek);
+    btnQuickMonth.addEventListener('click', setFilterMonth);
 
     btnViewGrid.addEventListener('click', () => { switchView('grid'); });
     btnViewTable.addEventListener('click', () => { switchView('table'); });
@@ -66,7 +73,7 @@ function setupEventListeners() {
     filterDept.addEventListener('change', renderAlerts);
     filterType.addEventListener('change', renderAlerts);
     filterSeverity.addEventListener('change', renderAlerts);
-    filterShowBlacklist.addEventListener('change', renderAlerts); // Listener sur la case noire
+    filterShowBlacklist.addEventListener('change', renderAlerts); 
     
     filterCurrentOnly.addEventListener('change', renderAlerts);
     filterDateStart.addEventListener('change', renderAlerts);
@@ -89,7 +96,7 @@ function switchView(viewType) {
 
 function toggleSortOrder() {
     sortAscending = !sortAscending;
-    btnToggleSort.innerHTML = sortAscending ? '⬇️ Tri : Date de début (Croissant)' : '⬆️ Tri : Date de début (Décroissant)';
+    btnToggleSort.innerHTML = sortAscending ? '⬇️ Tri : Date de début (Croissant)' : '⬇️ Tri : Date de début (Décroissant)';
     renderAlerts();
 }
 
@@ -98,40 +105,93 @@ function resetAllFilters() {
     filterDept.value = 'all';
     filterType.value = 'all';
     filterSeverity.value = 'all';
-    filterShowBlacklist.checked = false; // Désactivé par défaut à la réinitialisation
+    filterShowBlacklist.checked = false; 
     filterCurrentOnly.checked = false;
     filterDateStart.value = '';
-    filterDateStartLogic.value = 'before_or_on';
+    filterDateStartLogic.value = 'after_or_on';
     filterDateEnd.value = '';
     filterDateEndLogic.value = 'before_or_on';
     renderAlerts();
 }
 
+// --- UTILITAIRE FORMATAGE DATES ---
+function getYYYYMMDD(date) {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+}
+
+// --- FILTRES RAPIDES ---
 function setFilterToday() {
     resetAllFilters();
     filterCurrentOnly.checked = true;
     renderAlerts();
 }
 
-function setFilterTomorrow() {
+function setFilterWeek() {
     resetAllFilters();
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const now = new Date();
+    const dayOfWeek = now.getDay() || 7; // Convertir Dimanche (0) en 7
     
-    const yyyy = tomorrow.getFullYear();
-    const mm = String(tomorrow.getMonth() + 1).padStart(2, '0');
-    const dd = String(tomorrow.getDate()).padStart(2, '0');
-    const tomorrowStr = `${yyyy}-${mm}-${dd}`;
+    // Lundi de cette semaine
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - dayOfWeek + 1);
+    
+    // Dimanche de cette semaine
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
 
-    filterDateStartLogic.value = 'before_or_on';
-    filterDateStart.value = tomorrowStr;
+    filterDateStartLogic.value = 'after_or_on';
+    filterDateStart.value = getYYYYMMDD(monday);
     
-    filterDateEndLogic.value = 'after_or_on';
-    filterDateEnd.value = tomorrowStr;
+    filterDateEndLogic.value = 'before_or_on';
+    filterDateEnd.value = getYYYYMMDD(sunday);
     
     renderAlerts();
 }
 
+function setFilterNextWeek() {
+    resetAllFilters();
+    const now = new Date();
+    const dayOfWeek = now.getDay() || 7;
+    
+    // Lundi de la semaine prochaine
+    const nextMonday = new Date(now);
+    nextMonday.setDate(now.getDate() - dayOfWeek + 8);
+    
+    // Dimanche de la semaine prochaine
+    const nextSunday = new Date(nextMonday);
+    nextSunday.setDate(nextMonday.getDate() + 6);
+
+    filterDateStartLogic.value = 'after_or_on';
+    filterDateStart.value = getYYYYMMDD(nextMonday);
+    
+    filterDateEndLogic.value = 'before_or_on';
+    filterDateEnd.value = getYYYYMMDD(nextSunday);
+    
+    renderAlerts();
+}
+
+function setFilterMonth() {
+    resetAllFilters();
+    const now = new Date();
+    
+    // 1er du mois
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    // Dernier jour du mois (le jour 0 du mois suivant)
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+    filterDateStartLogic.value = 'after_or_on';
+    filterDateStart.value = getYYYYMMDD(firstDay);
+    
+    filterDateEndLogic.value = 'before_or_on';
+    filterDateEnd.value = getYYYYMMDD(lastDay);
+    
+    renderAlerts();
+}
+
+// --- GESTION DES FLUX ---
 async function synchronizeAll() {
     loader.classList.remove('hidden');
     btnSyncAll.disabled = true;
@@ -292,6 +352,7 @@ function renderAlerts() {
 
         const alertStartDate = parseAlertDate(alert.updated);
 
+        // --- FILTRE TEMPOREL ---
         if (currentOnly) {
             if (alertStartDate && alertStartDate > now) return false;
             const actualEndDate = extractEndDate(alert.cross);
@@ -324,7 +385,7 @@ function renderAlerts() {
         return true;
     });
 
-    // Tri temporel basé sur sortAscending (Décroissant par défaut)
+    // Tri temporel basé sur sortAscending
     filtered.sort((a, b) => {
         const dateA = parseAlertDate(a.updated) || (a.discoveredAt ? new Date(a.discoveredAt) : new Date(0));
         const dateB = parseAlertDate(b.updated) || (b.discoveredAt ? new Date(b.discoveredAt) : new Date(0));
@@ -531,4 +592,3 @@ function updateStats(totalCount, filteredAlerts) {
         statsByDept.appendChild(tag);
     }
 }
-// Note : L'accolade en trop a été supprimée proprement d'ici.
