@@ -36,8 +36,8 @@ export const DEPARTEMENTS_CONFIG = {
         format: "turbolead-geojson",
         sources: [
             { url: 'https://www.inforoute74.fr/mod_turbolead/mod/inforoute/index.php?action=374', name: 'Fermeture'},
-            { url: 'https://www.inforoute74.fr/mod_turbolead/mod/inforoute/index.php?action=367', name: 'Déviation' },
-            { url: 'https://www.inforoute74.fr/mod_turbolead/mod/inforoute/index.php?action=373', name: 'Waze' }
+            { url: 'https://www.inforoute74.fr/mod_turbolead/mod/inforoute/index.php?action=367', name: 'Déviation' }
+            //{ url: 'https://www.inforoute74.fr/mod_turbolead/mod/inforoute/index.php?action=373', name: 'Waze' }
         ]
     }
 };
