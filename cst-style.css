@@ -292,6 +292,36 @@ body {
     font-weight: 600;
     transition: all 0.2s;
 }
+
+.quick-actions-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 10px;
+    margin-top: 8px;
+}
+
+.mb-5 {
+    margin-bottom: 8px !important;
+}
+
+.mt-5 {
+    margin-top: 5px !important;
+}
+
+.mt-10 {
+    margin-top: 10px !important;
+}
+
+.text-sm {
+    font-size: 0.8rem;
+}
+
+/* On ajuste la couleur du texte muté pour le bouton liste noire */
+.text-muted {
+    color: var(--text-muted);
+}
+
 .btn-sort:hover { background-color: rgba(51, 204, 255, 0.1); }
 
 .border-top-dash { border-top: 1px dashed var(--border-color); padding-top: 15px; margin-top: 15px; }
