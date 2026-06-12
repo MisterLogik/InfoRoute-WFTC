@@ -2,29 +2,56 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Hub InfoRoute</title>
-    <link rel="stylesheet" href="css/style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Waze Tools - Hub Central</title>
+    <link rel="stylesheet" href="cst-style.css">
 </head>
 <body>
-    <header>
-        <h1>Mon Hub InfoRoute</h1>
-        <p>Sélectionnez un département pour voir les alertes en direct</p>
+
+    <header class="main-header">
+        <div class="logo-zone">
+            <span class="waze-ghost">👻</span>
+            <h1>Waze Administration Hub</h1>
+        </div>
+        <div class="sync-zone">
+            <span id="sync-status">Session locale active</span>
+        </div>
     </header>
 
-    <main class="hub-container">
-        <a href="haute-savoie.html" class="card-link">
-            <div class="card">
-                <h2>Haute-Savoie (74)</h2>
-                <p>Accéder au suivi du trafic, travaux et déviations.</p>
-            </div>
-        </a>
+    <main class="content-area">
+        <div style="text-align: center; margin-top: 20px; margin-bottom: 10px;">
+            <h2 style="font-size: 1.8rem; margin-bottom: 5px;">Console d'outils cartographiques</h2>
+            <p style="color: var(--text-muted); margin: 0;">Sélectionnez le module d'exploitation à charger</p>
+        </div>
 
-        <a href="isere.html" class="card-link">
-            <div class="card">
-                <h2>Isère (38)</h2>
-                <p>Accéder aux infos trafic d'Itinisère.</p>
+        <div class="hub-grid">
+            
+            <div class="hub-card active-module">
+                <div>
+                    <h2>InfoRoute France</h2>
+                    <p>Filtrez, triez et synchronisez les alertes de travaux, déviations et fermetures de routes en temps réel vers le WME.</p>
+                </div>
+                <a href="hub-inforoute-france.html" class="btn-primary" style="text-decoration: none; text-align: center; width: 80%;">Ouvrir le flux</a>
             </div>
-        </a>
+
+            <div class="hub-card active-module">
+                <div>
+                    <h2>Messagerie MailTC</h2>
+                    <p>Espace de communication sécurisé et gestion des signalements d'incidents par e-mail de l'équipe de modération.</p>
+                </div>
+                <a href="hub-mailtc.html" class="btn-primary" style="text-decoration: none; text-align: center; width: 80%;">Se connecter</a>
+            </div>
+
+            <div class="hub-card wip-module">
+                <div>
+                    <h2>Analyses Avancées</h2>
+                    <p>Statistiques prédictives des fermetures saisonnières, intégration d'API météo lourdes et outils géographiques automatisés.</p>
+                </div>
+                <a href="hub-futur.html" class="btn-primary" style="text-decoration: none; text-align: center; background-color: var(--info-gray); color: #fff; width: 80%;">Voir le statut</a>
+            </div>
+
+        </div>
     </main>
+
 </body>
 </html>
