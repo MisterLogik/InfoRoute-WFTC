@@ -35,9 +35,9 @@ export const DEPARTEMENTS_CONFIG = {
         name: "Haute-Savoie",
         format: "turbolead-geojson",
         sources: [
-            { url: 'https://www.inforoute74.fr/mod_turbolead/mod/inforoute/index.php?action=367&layer=layer-deviation', name: 'Déviation' },
-            { url: 'https://www.inforoute74.fr/mod_turbolead/mod/inforoute/index.php?action=367&layer=layer-repere_autre', name: 'Autre' },
-            { url: 'https://www.inforoute74.fr/mod_turbolead/mod/inforoute/index.php?action=367&layer=layer-repere_travaux', name: 'Travaux' }
+            { url: 'https://www.inforoute74.fr/mod_turbolead/mod/inforoute/index.php?action=374', name: 'Fermeture'},
+            { url: 'https://www.inforoute74.fr/mod_turbolead/mod/inforoute/index.php?action=367', name: 'Déviation' },
+            { url: 'https://www.inforoute74.fr/mod_turbolead/mod/inforoute/index.php?action=373', name: 'Waze' }
         ]
     }
 };
