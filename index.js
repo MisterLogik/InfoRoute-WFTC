@@ -69,6 +69,13 @@ export default {
       return env.ASSETS.fetch(request);
     }
 
+    if (url.pathname === '/favicon.png') {
+        const imgResponse = await fetch('https://raw.githubusercontent.com/.../favicon.png');
+        return new Response(imgResponse.body, {
+            headers: { 'Content-Type': 'image/png' }
+        });
+    }
+
     // Si tu es sur un Worker standard et non Cloudflare Pages, ceci permet de laisser passer la requête vers l'origine configurée
     return fetch(request);
   },
