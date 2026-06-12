@@ -53,7 +53,5 @@ export const BLACKLIST_KEYWORDS = [
     "Arrondissement ",
     "P+R d",
     "Parc départemental -",
-    "Col de",
-    "",
-    "",
+    "Col de"
 ];
