@@ -1,9 +1,4 @@
-import { DEPARTEMENTS_CONFIG, SAVOIE_CATEGORIES } from './config-api.js';
-
-// Configuration dynamique du Proxy CORS
-const PROXY_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? 'https://hub-inforoutefrance.workers.dev/api-proxy/' // À adapter avec ton sous-domaine de test si nécessaire
-    : '/api-proxy/'; // En production sur Cloudflare, le routage relatif fonctionne nativement
+import { DEPARTEMENTS_CONFIG, SAVOIE_CATEGORIES, PROXY_URL } from './config-api.js';
 
 export async function fetchDeptData(deptCode) {
     const config = DEPARTEMENTS_CONFIG[deptCode];
@@ -23,10 +18,15 @@ export async function fetchDeptData(deptCode) {
 
 // --- MOTEUR 1 : Isère (38) & Haute-Savoie (74) ---
 async function fetchTurboleadData(deptCode, sources) {
+    let combinedAlerts = [];
+
+    // On lance toutes les requêtes du département en parallèle
     const promises = sources.map(async (source) => {
         try {
-            // Routage forcé à travers le worker Cloudflare pour contourner le CORS
-            const response = await fetch(PROXY_BASE + source.url, {
+            // INTEGRATION CORS : Routage de l'URL cible à travers notre proxy Cloudflare
+            const proxiedUrl = `${PROXY_URL}?url=${encodeURIComponent(source.url)}`;
+
+            const response = await fetch(proxiedUrl, {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json, text/javascript, */*; q=0.01',
@@ -36,13 +36,15 @@ async function fetchTurboleadData(deptCode, sources) {
 
             if (!response.ok) return [];
 
+            // Sécurité additionnelle : on vérifie que le serveur n'a pas renvoyé du HTML (ex: redirection d'erreur)
             const contentType = response.headers.get('content-type') || '';
             if (contentType.includes('text/html')) {
-                console.warn(`[Dept ${deptCode}] La source "${source.name}" a renvoyé du HTML via le proxy.`);
+                console.warn(`[Dept ${deptCode}] La source "${source.name}" a renvoyé du HTML. Le serveur refuse de fournir du JSON.`);
                 return [];
             }
 
             const geojson = await response.json();
+            
             if (!geojson.features || !Array.isArray(geojson.features)) return [];
 
             return geojson.features.map((feat, index) => {
@@ -82,14 +84,12 @@ async function fetchSavoieApiData(deptCode, apiBaseUrl) {
 
     for (const catId of categoryIds) {
         try {
-            // Premier appel POST via le proxy CORS Cloudflare
-            const list = await gmPostJson(PROXY_BASE + apiBaseUrl, { id: parseInt(catId) });
+            const list = await gmPostJson(apiBaseUrl, { id: parseInt(catId) });
             if (!Array.isArray(list)) continue;
 
             for (const item of list) {
                 try {
-                    // Second appel POST (Détails) via le proxy CORS Cloudflare
-                    const detail = await gmPostJson(`${PROXY_BASE}${apiBaseUrl}/allData`, { idAll: item.idtInfo });
+                    const detail = await gmPostJson(`${apiBaseUrl}/allData`, { idAll: item.idtInfo });
                     
                     let d = detail;
                     if (detail && detail.Detail_allData && Array.isArray(detail.Detail_allData)) d = detail.Detail_allData[0];
@@ -138,7 +138,7 @@ async function fetchSavoieApiData(deptCode, apiBaseUrl) {
     return alerts;
 }
 
-// --- UTILS ---
+// --- UTILS : Nettoyage et requêtes POST ---
 function cleanText(str) {
     if (!str) return '';
     return String(str)
@@ -157,7 +157,10 @@ function cleanText(str) {
 }
 
 function gmPostJson(url, body) {
-    return fetch(url, {
+    // INTEGRATION CORS : Routage de la requête POST à travers notre proxy Cloudflare
+    const proxiedUrl = `${PROXY_URL}?url=${encodeURIComponent(url)}`;
+
+    return fetch(proxiedUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
