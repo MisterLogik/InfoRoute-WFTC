@@ -44,7 +44,6 @@ export const DEPARTEMENTS_CONFIG = {
 
 // Mots-clés définissant une fausse alerte à nettoyer (Règle 4)
 export const BLACKLIST_KEYWORDS = [
-    "1 ", "2 ", "3 ", "4 ", "5 ", "6 ", "7 ",
     "1-", "2-", "3-", "4-", "5-", "6-", "7-",
     "Tunnel ",
     "Station de ski -",
