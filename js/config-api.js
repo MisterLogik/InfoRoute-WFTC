@@ -44,15 +44,21 @@ export const DEPARTEMENTS_CONFIG = {
 
 // Mots-clés définissant une fausse alerte à nettoyer (Règle 4)
 export const BLACKLIST_KEYWORDS = [
+    "Station de Ski -", 
+    "Col d", 
+    "Tunnel d", 
+    "Paravalanche",
+    "CERD d", 
+    "P+R", 
+    "Parc départemental", 
+    "Restriction de Hauteur",
+    "Restrictions de tonnage", 
+    "Restriction de tonnage", 
+    "Restriction de Longueur",
+    "Restriction de Largeur", 
+    "Transit Intercit", 
+    "Transport de matières dangereuses -",
+    "Direction des Routes -",
     "1-", "2-", "3-", "4-", "5-", "6-", "7-",
-    "Tunnel ",
-    "Station de ski -",
-    "Paravalanche d",
-    "CERD ",
-    "P+R d",
-    "Parc départemental -",
-    "Col de",
-    "Restriction de hauteur",
-    "Restriction de largeur",
-    "Restriction de longueur"
+    "1 -", "2 -", "3 -", "4 -", "5 -", "6 -", "7 -"
 ];
