@@ -1,9 +1,0 @@
-{
-  "name": "hub-inforoutefrance",
-  "main": "_worker.js",
-  "compatibility_date": "2026-06-11",
-  "assets": {
-    "directory": "./",
-    "binding": "ASSETS"
-  }
-}
