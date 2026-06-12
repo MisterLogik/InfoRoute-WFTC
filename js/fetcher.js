@@ -1,9 +1,9 @@
 import { DEPARTEMENTS_CONFIG, SAVOIE_CATEGORIES } from './config-api.js';
 
-// Détection automatique du contexte (Local vs Cloudflare de prod)
+// Configuration dynamique du Proxy CORS
 const PROXY_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? 'https://ton-subdomaine-cloudflare.workers.dev/api-proxy/' // Si tu testes en local sans wrangler (Mettre l'URL définitive de ton worker)
-    : '/api-proxy/'; // En prod sur Cloudflare Pages, le routage est relatif !
+    ? 'https://hub-inforoutefrance.workers.dev/api-proxy/' // À adapter avec ton sous-domaine de test si nécessaire
+    : '/api-proxy/'; // En production sur Cloudflare, le routage relatif fonctionne nativement
 
 export async function fetchDeptData(deptCode) {
     const config = DEPARTEMENTS_CONFIG[deptCode];
@@ -23,14 +23,10 @@ export async function fetchDeptData(deptCode) {
 
 // --- MOTEUR 1 : Isère (38) & Haute-Savoie (74) ---
 async function fetchTurboleadData(deptCode, sources) {
-    let combinedAlerts = [];
-
     const promises = sources.map(async (source) => {
         try {
-            // Modification ici : Routage à travers le proxy CORS
-            const targetUrl = PROXY_BASE + source.url;
-            
-            const response = await fetch(targetUrl, {
+            // Routage forcé à travers le worker Cloudflare pour contourner le CORS
+            const response = await fetch(PROXY_BASE + source.url, {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json, text/javascript, */*; q=0.01',
@@ -42,7 +38,7 @@ async function fetchTurboleadData(deptCode, sources) {
 
             const contentType = response.headers.get('content-type') || '';
             if (contentType.includes('text/html')) {
-                console.warn(`[Dept ${deptCode}] La source "${source.name}" a renvoyé du HTML via le Proxy.`);
+                console.warn(`[Dept ${deptCode}] La source "${source.name}" a renvoyé du HTML via le proxy.`);
                 return [];
             }
 
@@ -86,13 +82,13 @@ async function fetchSavoieApiData(deptCode, apiBaseUrl) {
 
     for (const catId of categoryIds) {
         try {
-            // Modification ici : Routage à travers le proxy CORS
+            // Premier appel POST via le proxy CORS Cloudflare
             const list = await gmPostJson(PROXY_BASE + apiBaseUrl, { id: parseInt(catId) });
             if (!Array.isArray(list)) continue;
 
             for (const item of list) {
                 try {
-                    // Modification ici : Routage à travers le proxy CORS
+                    // Second appel POST (Détails) via le proxy CORS Cloudflare
                     const detail = await gmPostJson(`${PROXY_BASE}${apiBaseUrl}/allData`, { idAll: item.idtInfo });
                     
                     let d = detail;
