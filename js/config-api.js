@@ -50,8 +50,10 @@ export const BLACKLIST_KEYWORDS = [
     "Station de ski -",
     "Paravalanche d",
     "CERD ",
-    "Arrondissement ",
     "P+R d",
     "Parc départemental -",
-    "Col de"
+    "Col de",
+    "Restriction de hauteur",
+    "Restriction de largeur",
+    "Restriction de longueur"
 ];
