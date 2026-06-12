@@ -3,7 +3,13 @@
   "main": "_worker.js",
   "compatibility_date": "2026-06-11",
   "assets": {
-    "directory": "./public",
-    "binding": "ASSETS"
+    "directory": "./",
+    "binding": "ASSETS",
+    "exclude": [
+      "wrangler.json",
+      "_worker.js",
+      ".git",
+      ".github"
+    ]
   }
 }
