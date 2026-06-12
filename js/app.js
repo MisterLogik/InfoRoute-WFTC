@@ -3,7 +3,7 @@ import { fetchDeptData } from './fetcher.js';
 
 // --- État de l'application ---
 window.ALL_ALERTS = []; 
-let sortAscending = false; // Tri décroissant par défaut (les plus récents en premier)
+let sortAscending = false; 
 let currentView = 'grid'; 
 
 // --- Éléments du DOM ---
@@ -11,11 +11,12 @@ const btnSyncAll = document.getElementById('btn-sync-all');
 const btnResetFilters = document.getElementById('btn-reset-filters');
 const btnToggleSort = document.getElementById('btn-toggle-sort');
 
-// Nouveaux boutons temporels
+// Boutons temporels
 const btnQuickToday = document.getElementById('btn-quick-today');
 const btnQuickWeek = document.getElementById('btn-quick-week');
 const btnQuickNextWeek = document.getElementById('btn-quick-next-week');
 const btnQuickMonth = document.getElementById('btn-quick-month');
+const btnQuickNextMonth = document.getElementById('btn-quick-next-month'); // Ajout
 
 const btnViewGrid = document.getElementById('btn-view-grid');
 const btnViewTable = document.getElementById('btn-view-table');
@@ -60,11 +61,12 @@ function setupEventListeners() {
     btnResetFilters.addEventListener('click', resetAllFilters);
     btnToggleSort.addEventListener('click', toggleSortOrder);
     
-    // Nouveaux Listeners Temporels
+    // Listeners Temporels
     btnQuickToday.addEventListener('click', setFilterToday);
     btnQuickWeek.addEventListener('click', setFilterWeek);
     btnQuickNextWeek.addEventListener('click', setFilterNextWeek);
     btnQuickMonth.addEventListener('click', setFilterMonth);
+    btnQuickNextMonth.addEventListener('click', setFilterNextMonth); // Ajout
 
     btnViewGrid.addEventListener('click', () => { switchView('grid'); });
     btnViewTable.addEventListener('click', () => { switchView('table'); });
@@ -122,7 +124,7 @@ function getYYYYMMDD(date) {
     return `${yyyy}-${mm}-${dd}`;
 }
 
-// --- FILTRES RAPIDES ---
+// --- FILTRES RAPIDES REPARAMÉTRÉS ---
 function setFilterToday() {
     resetAllFilters();
     filterCurrentOnly.checked = true;
@@ -131,62 +133,61 @@ function setFilterToday() {
 
 function setFilterWeek() {
     resetAllFilters();
-    const now = new Date();
-    const dayOfWeek = now.getDay() || 7; // Convertir Dimanche (0) en 7
-    
-    // Lundi de cette semaine
-    const monday = new Date(now);
-    monday.setDate(now.getDate() - dayOfWeek + 1);
-    
-    // Dimanche de cette semaine
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
+    const start = new Date();
+    const end = new Date();
+    end.setDate(start.getDate() + 7); // J + 7 inclus
 
     filterDateStartLogic.value = 'after_or_on';
-    filterDateStart.value = getYYYYMMDD(monday);
+    filterDateStart.value = getYYYYMMDD(start);
     
     filterDateEndLogic.value = 'before_or_on';
-    filterDateEnd.value = getYYYYMMDD(sunday);
+    filterDateEnd.value = getYYYYMMDD(end);
     
     renderAlerts();
 }
 
 function setFilterNextWeek() {
     resetAllFilters();
-    const now = new Date();
-    const dayOfWeek = now.getDay() || 7;
+    const start = new Date();
+    start.setDate(start.getDate() + 7); // Début à J + 7
     
-    // Lundi de la semaine prochaine
-    const nextMonday = new Date(now);
-    nextMonday.setDate(now.getDate() - dayOfWeek + 8);
-    
-    // Dimanche de la semaine prochaine
-    const nextSunday = new Date(nextMonday);
-    nextSunday.setDate(nextMonday.getDate() + 6);
+    const end = new Date();
+    end.setDate(start.getDate() + 7); // Fin à J + 14 inclus
 
     filterDateStartLogic.value = 'after_or_on';
-    filterDateStart.value = getYYYYMMDD(nextMonday);
+    filterDateStart.value = getYYYYMMDD(start);
     
     filterDateEndLogic.value = 'before_or_on';
-    filterDateEnd.value = getYYYYMMDD(nextSunday);
+    filterDateEnd.value = getYYYYMMDD(end);
     
     renderAlerts();
 }
 
 function setFilterMonth() {
     resetAllFilters();
-    const now = new Date();
-    
-    // 1er du mois
-    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-    // Dernier jour du mois (le jour 0 du mois suivant)
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const start = new Date();
+    const end = new Date(start.getFullYear(), start.getMonth() + 1, 0); // Dernier jour du mois en cours
 
     filterDateStartLogic.value = 'after_or_on';
-    filterDateStart.value = getYYYYMMDD(firstDay);
+    filterDateStart.value = getYYYYMMDD(start);
     
     filterDateEndLogic.value = 'before_or_on';
-    filterDateEnd.value = getYYYYMMDD(lastDay);
+    filterDateEnd.value = getYYYYMMDD(end);
+    
+    renderAlerts();
+}
+
+function setFilterNextMonth() {
+    resetAllFilters();
+    const now = new Date();
+    const firstDayNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const lastDayNextMonth = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+
+    filterDateStartLogic.value = 'after_or_on';
+    filterDateStart.value = getYYYYMMDD(firstDayNextMonth);
+    
+    filterDateEndLogic.value = 'before_or_on';
+    filterDateEnd.value = getYYYYMMDD(lastDayNextMonth);
     
     renderAlerts();
 }
@@ -252,10 +253,20 @@ function renderAlerts() {
     const endLogic = filterDateEndLogic.value;
 
     const now = new Date();
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(now.getFullYear() - 1); // Pour la sécurité obsolescence
 
     let filtered = window.ALL_ALERTS.filter(alert => {
         const titleLower = alert.title.toLowerCase();
         const crossLower = alert.cross.toLowerCase();
+        const alertStartDate = parseAlertDate(alert.updated);
+
+        // --- SÉCURITÉ ANTI-POLLUTION DES DATES D'IMPORT ---
+        // Si un filtre temporel est actif mais qu'aucune date réelle n'est présente, on l'exclut d'office
+        const isAnyDateFilterActive = currentOnly || startTargetStr || endTargetStr;
+        if (isAnyDateFilterActive && !alertStartDate) {
+            return false;
+        }
 
         // 1. Détermination de la nature de la perturbation
         let calculatedType = alert.type;
@@ -268,33 +279,27 @@ function renderAlerts() {
         alert.computedCategory = calculatedType;
 
         // 2. MOTEUR ANALYTIQUE DE QUALIFICATION DES GRAVITÉS
-        let severity = 'warning'; // Orange par défaut
+        let severity = 'warning'; 
 
-        // Règle 4 : Détection Liste Noire (Priorité Haute)
-        const isBlacklisted = BLACKLIST_KEYWORDS.some(kw => 
-            titleLower.includes(kw.toLowerCase()) || crossLower.includes(kw.toLowerCase())
-        );
-
-        if (isBlacklisted) {
-            severity = 'blacklist'; // Blanc
+        // 🛑 SÉCURITÉ : Plus de 1 an -> Catégorie Blanche (Priorité absolue)
+        if (alertStartDate && alertStartDate < oneYearAgo) {
+            severity = 'blacklist'; 
+        } 
+        // Détection Liste Noire classique
+        else if (BLACKLIST_KEYWORDS.some(kw => titleLower.includes(kw.toLowerCase()) || crossLower.includes(kw.toLowerCase()))) {
+            severity = 'blacklist'; 
         } 
         // Traitement Savoie (73)
         else if (alert.deptCode === '73') {
             const impactStr = alert.impact ? alert.impact.toLowerCase() : '';
             const hasCoupeeInImpact = impactStr.includes('coupé') || impactStr.includes('coupee') || impactStr.includes('coupée') || impactStr.includes('coupés') || impactStr.includes('coupées');
-            
             const closureKeywords = ['coupé', 'coupee', 'coupée', 'coupées', 'coupés', 'fermeture', 'barré', 'barrée', 'barrés', 'barrées', 'fermé', 'fermée', 'fermés', 'fermées'];
             const hasClosureInDetails = closureKeywords.some(kw => crossLower.includes(kw) || titleLower.includes(kw));
 
             if (hasCoupeeInImpact) {
-                severity = 'danger'; // Règle 1 -> Rouge
+                severity = 'danger';
             } else {
-                // Règle 2, 3 & 3bis : Impact non défini
-                if (hasClosureInDetails) {
-                    severity = 'warning'; // Règle 2 et Remontée 3bis -> Orange
-                } else {
-                    severity = 'info'; // Règle 3 et Alternat pur 3bis -> Gris
-                }
+                severity = hasClosureInDetails ? 'warning' : 'info';
             }
         } 
         // Traitement Isère (38)
@@ -304,9 +309,9 @@ function renderAlerts() {
             const defaultNoDesc = !alert.cross || alert.cross === "Aucun détail." || alert.cross.trim() === "";
 
             if (hasRouteBarreeInCross && !defaultNoDesc) {
-                severity = 'danger'; // Présent en description -> Montée en 1 (Rouge)
+                severity = 'danger';
             } else if (hasRouteBarreeInTitle || (hasRouteBarreeInCross && defaultNoDesc)) {
-                severity = 'warning'; // Titre ou sans description -> Classé en 2 (Orange)
+                severity = 'warning';
             } else {
                 severity = alert.originalSeverity || 'warning';
             }
@@ -314,24 +319,16 @@ function renderAlerts() {
         // Autres départements
         else {
             const closureKeywords = ['coupé', 'coupee', 'coupée', 'fermeture', 'barré', 'barrée', 'fermé', 'fermée'];
-            const hasClosure = closureKeywords.some(kw => crossLower.includes(kw) || titleLower.includes(kw));
-            if (hasClosure) {
-                severity = 'danger';
-            } else {
-                severity = alert.originalSeverity || 'warning';
-            }
+            severity = closureKeywords.some(kw => crossLower.includes(kw) || titleLower.includes(kw)) ? 'danger' : (alert.originalSeverity || 'warning');
         }
 
         alert.computedSeverity = severity;
 
-        // 3. LOGIQUE DE FILTRAGE DES ALERTES BLANCHES (LISTE NOIRE)
-        if (alert.computedSeverity === 'blacklist') {
-            if (!isShowBlacklistChecked && selectedSeverity !== 'blacklist') {
-                return false; 
-            }
+        // 3. LOGIQUE DE FILTRAGE DES UI CLASSIQUES
+        if (alert.computedSeverity === 'blacklist' && !isShowBlacklistChecked && selectedSeverity !== 'blacklist') {
+            return false; 
         }
 
-        // 4. LOGIQUE DE FILTRAGE DES UI CLASSIQUES
         const matchSearch = titleLower.includes(searchQuery) || crossLower.includes(searchQuery);
         const matchDept = selectedDept === 'all' || alert.deptCode === selectedDept;
         
@@ -350,11 +347,9 @@ function renderAlerts() {
 
         if (!matchSearch || !matchDept || !matchType || !matchSeverity) return false;
 
-        const alertStartDate = parseAlertDate(alert.updated);
-
-        // --- FILTRE TEMPOREL ---
-        if (currentOnly) {
-            if (alertStartDate && alertStartDate > now) return false;
+        // --- FILTRES DE DATES (Seulement si l'alerte a une date valide) ---
+        if (currentOnly && alertStartDate) {
+            if (alertStartDate > now) return false;
             const actualEndDate = extractEndDate(alert.cross);
             if (actualEndDate && actualEndDate < now) return false;
         }
@@ -369,12 +364,12 @@ function renderAlerts() {
             if (startLogic === 'after_or_on' && compDate < target) return false;
         }
 
-        if (endTargetStr) {
-            const actualEndDate = extractEndDate(alert.cross);
-            if (!actualEndDate) return false; 
+        if (endTargetStr && alertStartDate) {
+            // Extraction de la fin ou fallback sur le début si absent du texte
+            const actualEndDate = extractEndDate(alert.cross) || alertStartDate; 
 
             const target = new Date(endTargetStr);
-            target.setHours(0, 0, 0, 0);
+            target.setHours(23, 59, 59, 999);
             const compDate = new Date(actualEndDate);
             compDate.setHours(0, 0, 0, 0);
 
@@ -385,7 +380,7 @@ function renderAlerts() {
         return true;
     });
 
-    // Tri temporel basé sur sortAscending
+    // Tri (Garde la date d'import en ultime secours uniquement pour ordonner la table/grille)
     filtered.sort((a, b) => {
         const dateA = parseAlertDate(a.updated) || (a.discoveredAt ? new Date(a.discoveredAt) : new Date(0));
         const dateB = parseAlertDate(b.updated) || (b.discoveredAt ? new Date(b.discoveredAt) : new Date(0));
@@ -411,13 +406,12 @@ function renderAlerts() {
 
 function renderGridView(alerts) {
     alertsGrid.className = "alerts-grid";
-    
     alerts.forEach(alert => {
         const card = document.createElement('div');
         card.className = `card ${alert.computedSeverity}`;
         
         const isBl = alert.computedSeverity === 'blacklist';
-        const displayType = isBl ? '🏳️ SUSPECT (Filtré Liste Noire)' : (alert.computedCategory === 'Alternat' ? '🚧 TRAVAUX (Alternat)' : `⛔ ${alert.type.toUpperCase()}`);
+        const displayType = isBl ? '🏳️ HORS DÉLAI / BLACKLIST' : (alert.computedCategory === 'Alternat' ? '🚧 TRAVAUX (Alternat)' : `⛔ ${alert.type.toUpperCase()}`);
         const hasDate = parseAlertDate(alert.updated) !== null;
         const creationInfo = alert.discoveredAt ? `Flux : ${new Date(alert.discoveredAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : 'Flux : Inconnu';
 
@@ -439,7 +433,7 @@ function renderGridView(alerts) {
                     <span class="card-type">${displayType}</span>
                     <span class="card-dept">Dép. ${alert.deptCode}</span>
                 </div>
-                <div class="card-title" style="color: var(--text-muted); font-size: 0.95rem; font-style: italic;">[Masqué] ${alert.title}</div>
+                <div class="card-title" style="color: var(--text-muted); font-size: 0.95rem; font-style: italic;">[Masqué ou >1an] ${alert.title}</div>
                 <div class="card-footer" style="margin-top:auto;">
                     <div class="creation-badge">⏱️ ${creationInfo}</div>
                     ${wmeActionHtml}
@@ -466,7 +460,6 @@ function renderGridView(alerts) {
 
 function renderTableView(alerts) {
     alertsGrid.className = "";
-    
     const container = document.createElement('div');
     container.className = "tc-table-container";
 
@@ -490,12 +483,12 @@ function renderTableView(alerts) {
         }
 
         const isBl = alert.computedSeverity === 'blacklist';
-        const displayCross = isBl ? '<span style="color:var(--text-muted); font-style:italic;">Masqué (Liste Noire)</span>' : alert.cross;
+        const displayCross = isBl ? '<span style="color:var(--text-muted); font-style:italic;">Masqué / Archivage de sécurité</span>' : alert.cross;
 
         rowsHtml += `
             <tr class="${severityClass}">
                 <td style="font-weight:bold; text-align:center;">${alert.deptCode}</td>
-                <td><strong>${isBl ? 'Blacklist' : alert.computedCategory}</strong></td>
+                <td><strong>${isBl ? 'Obsolète/BL' : alert.computedCategory}</strong></td>
                 <td>
                     <div style="font-weight:600; color:${isBl ? 'var(--text-muted)' : '#fff'};">${alert.title}</div>
                     <div style="font-size:0.75rem; color:#aaa; max-height:40px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
@@ -553,7 +546,7 @@ function extractEndDate(text) {
     }
     const genericMatch = text.match(/(?:jusqu'au|fin|prévue le|au)\s*[:\s]*(\d{2})\/(\d{2})\/(\d{4})/i);
     if (genericMatch) {
-        return new Date(parseInt(genericMatch[3]), parseInt(genericMatch[2]) - 1, parseInt(genericMatch[1]), 18, 0); 
+        return new Date(parseInt(genericMatch[3]), parseInt(genericMatch[2]) - 1, parseInt(genericMatch[1]), 23, 59); 
     }
     return null;
 }
@@ -566,7 +559,6 @@ function formatDisplayDate(dateStr) {
 
 function updateStats(totalCount, filteredAlerts) {
     statTotal.textContent = totalCount;
-    
     let countsSeverity = { danger: 0, warning: 0, info: 0, blacklist: 0 };
     const countsDept = {};
 
@@ -579,12 +571,11 @@ function updateStats(totalCount, filteredAlerts) {
         <div class="severity-stat-badge" title="Bloquant Impératif">🔴 <strong>${countsSeverity.danger}</strong></div>
         <div class="severity-stat-badge" title="À vérifier / Partiel">🟠 <strong>${countsSeverity.warning}</strong></div>
         <div class="severity-stat-badge" title="Informatif / Mineur">🔘 <strong>${countsSeverity.info}</strong></div>
-        <div class="severity-stat-badge" title="Liste Noire">⚪ <strong>${countsSeverity.blacklist}</strong></div>
+        <div class="severity-stat-badge" title="Liste Noire / Obsolète">⚪ <strong>${countsSeverity.blacklist}</strong></div>
     `;
 
     statsByDept.innerHTML = '';
     const sortedDepts = Object.entries(countsDept).sort((a, b) => b[1] - a[1]);
-
     for (const [dept, count] of sortedDepts) {
         const tag = document.createElement('span');
         tag.className = 'dept-tag-stat';
