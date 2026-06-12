@@ -10,12 +10,36 @@ export default {
       "Access-Control-Max-Age": "86400",
     };
 
-    // 1. Gestion du Preflight OPTIONS pour le proxy ou les assets
+    // ==========================================================================
+    // 1. SÉCURITÉ ET CONSOLE (Preflight OPTIONS & Favicons)
+    // ==========================================================================
+
+    // Gestion du Preflight OPTIONS pour le proxy ou les assets
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: corsHeaders });
     }
 
-    // 2. CAS A : C'est une requête de Proxy (Présence du paramètre ?url=)
+    // Intercepte la requête automatique favicon.ico de Chrome pour éviter l'erreur 404
+    if (url.pathname === '/favicon.ico') {
+      return new Response(null, { status: 204 });
+    }
+
+    // Gère votre icône personnalisée favicon.png si appelée explicitement
+    if (url.pathname === '/favicon.png') {
+      try {
+        const imgResponse = await fetch('https://raw.githubusercontent.com/.../favicon.png'); // Mettez votre vrai lien brut GitHub si besoin
+        return new Response(imgResponse.body, {
+          status: 200,
+          headers: { 'Content-Type': 'image/png' }
+        });
+      } catch (e) {
+        return new Response(null, { status: 404 });
+      }
+    }
+
+    // ==========================================================================
+    // 2. CAS A : REQUÊTE DE PROXY (Présence du paramètre ?url=)
+    // ==========================================================================
     const targetUrlStr = url.searchParams.get("url");
     if (targetUrlStr) {
       try {
@@ -63,20 +87,39 @@ export default {
       }
     }
 
-    // 3. CAS B : C'est une requête pour ton site web (Fichiers statiques, CSS, JS)
-    // On passe le relais au système d'assets par défaut de Cloudflare (env.ASSETS ou fetch natif)
+    // ==========================================================================
+    // 3. CAS B : REQUÊTE POUR LE SITE WEB (Fichiers statiques HTML, CSS, JS)
+    // ==========================================================================
     if (typeof env.ASSETS !== "undefined") {
-      return env.ASSETS.fetch(request);
-    }
+      // On va chercher le fichier demandé dans le système d'assets de Cloudflare Pages
+      const assetResponse = await env.ASSETS.fetch(request);
 
-    if (url.pathname === '/favicon.png') {
-        const imgResponse = await fetch('https://raw.githubusercontent.com/.../favicon.png');
-        return new Response(imgResponse.body, {
-            headers: { 'Content-Type': 'image/png' }
+      // S'il s'agit d'un fichier CSS, on intercepte la réponse pour FORCER le type MIME text/css
+      if (url.pathname.endsWith('.css')) {
+        return new Response(assetResponse.body, {
+          status: assetResponse.status,
+          headers: {
+            ...Object.fromEntries(assetResponse.headers.entries()),
+            'Content-Type': 'text/css; charset=utf-8'
+          }
         });
+      }
+
+      // S'il s'agit d'un fichier JS d'application, on FORCE le type application/javascript
+      if (url.pathname.endsWith('.js')) {
+        return new Response(assetResponse.body, {
+          status: assetResponse.status,
+          headers: {
+            ...Object.fromEntries(assetResponse.headers.entries()),
+            'Content-Type': 'application/javascript; charset=utf-8'
+          }
+        });
+      }
+
+      return assetResponse;
     }
 
-    // Si tu es sur un Worker standard et non Cloudflare Pages, ceci permet de laisser passer la requête vers l'origine configurée
+    // Si le script s'exécute sur un Worker standard indépendant (sans liaison Cloudflare Pages)
     return fetch(request);
   },
 };
