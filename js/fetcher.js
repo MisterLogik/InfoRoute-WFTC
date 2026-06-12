@@ -35,16 +35,26 @@ async function fetchTurboleadData(deptCode, sources) {
             });
 
             if (!response.ok) return [];
-
-            // Sécurité additionnelle : on vérifie que le serveur n'a pas renvoyé du HTML (ex: redirection d'erreur)
-            const contentType = response.headers.get('content-type') || '';
-            if (contentType.includes('text/html')) {
-                console.warn(`[Dept ${deptCode}] La source "${source.name}" a renvoyé du HTML. Le serveur refuse de fournir du JSON.`);
+            
+            // On récupère le texte brut d'abord pour ne pas faire planter le .json() direct
+            const rawText = await response.text();
+            let geojson;
+            
+            try {
+                // On tente de le parser en JSON, peu importe ce que prétend le Content-Type
+                geojson = JSON.parse(rawText);
+            } catch (jsonError) {
+                // Si le parse échoue, c'est que c'est VRAIMENT du HTML ou du texte invalide
+                const contentType = response.headers.get('content-type') || '';
+                if (contentType.includes('text/html')) {
+                    console.warn(`[Dept ${deptCode}] La source "${source.name}" a renvoyé du vrai HTML (redirection ou erreur serveur). Impossible de parser.`);
+                } else {
+                    console.warn(`[Dept ${deptCode}] Impossible de parser le JSON pour la source "${source.name}":`, jsonError.message);
+                }
                 return [];
             }
-
-            const geojson = await response.json();
             
+            // À partir d'ici, geojson contient ton objet propre, la suite de ton code reste identique...
             if (!geojson.features || !Array.isArray(geojson.features)) return [];
 
             return geojson.features.map((feat, index) => {
