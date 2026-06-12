@@ -1,6 +1,6 @@
 // CONFIGURATION DU PROXY CORS CLOUDFLARE
 // Remplace par l'URL de ton Worker (ex: https://mon-proxy.mon-nom.workers.dev/)
-export const PROXY_URL = "https://ton-worker-cors.ton-nom.workers.dev/";
+export const PROXY_URL = "https://hub-inforoutefrance.xtremxlogik.workers.dev/";
 
 // Les catégories officielles trouvées dans le script WME Savoie
 export const SAVOIE_CATEGORIES = {
