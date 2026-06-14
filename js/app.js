@@ -194,6 +194,7 @@ function setFilterNextMonth() {
 
 // --- GESTION DES FLUX ---
 // --- GESTION DES FLUX SÉCURISÉE ---
+// --- GESTION DES FLUX SÉCURISÉE ---
 async function synchronizeAll() {
     loader.classList.remove('hidden');
     btnSyncAll.disabled = true;
@@ -243,6 +244,7 @@ async function synchronizeAll() {
     updateSyncStatus(now);
     renderAlerts(); // Relance l'affichage des départements opérationnels
 }
+
     const results = await Promise.all(fetchPromises);
     window.ALL_ALERTS = results.flat(); 
 
