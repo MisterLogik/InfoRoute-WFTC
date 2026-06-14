@@ -1,15 +1,7 @@
 // CONFIGURATION DU PROXY CORS CLOUDFLARE
 export const PROXY_URL = "https://inforoutefrance-proxy.xtremxlogik.workers.dev/";
 
-// Configuration unique pour la Savoie (73)
-export const SAVOIE_CONFIG = {
-    name: "Savoie",
-    code: "73",
-    apiUrlEvents: "https://savoie-route.fr/api/v1/evenements",
-    apiUrlFlash: "https://savoie-route.fr/api/v1/flashsInfo/flashsInfo"
-};
-
-// Liste des IDs catégories officiels de l'API Savoie-Route
+// Les catégories officielles issues de l'API Savoie-Route
 export const SAVOIE_CATEGORIES = {
     38: { name: "Accident", icon: "⚠️", severity: "danger" },
     40: { name: "Bouchon", icon: "🚗", severity: "warning" },
@@ -20,16 +12,32 @@ export const SAVOIE_CATEGORIES = {
     59: { name: "Déviation", icon: "↔️", severity: "warning" }
 };
 
-// Système de détection multi-tags basé sur le texte (Titre / Commentaire)
-export const TAGS_KEYWORDS = {
-    "Accident": ["accident"],
-    "Bouchon": ["bouchon", "embouteillage", "ralentissement", "bouchons"],
-    "Travaux": ["travaux", "chantier", "alternat", "rabotage", "goudronnage"],
-    "Manifestation": ["manifestation", "sport", "course", "cycliste"],
-    "Obstacle": ["obstacle", "éboulement", "arbre", "pierre", "matériaux"],
-    "Fermeture": ["fermeture", "coupé", "coupée", "barré", "barrée", "fermé", "fermée", "interdit", "interdite"],
-    "Déviation": ["déviation", "deviation", "itinéraire conseillé"]
+// Configuration globale restreinte à la Savoie unique (73)
+export const DEPARTEMENTS_CONFIG = {
+    "73": {
+        name: "Savoie",
+        format: "savoie-api",
+        apiUrlBase: "https://savoie-route.fr/api/v1/evenements"
+    }
 };
 
 // Mots-clés définissant une fausse alerte à nettoyer (Règle Liste Noire)
-export const BLACKLIST_KEYWORDS = ["test"];
+export const BLACKLIST_KEYWORDS = [
+    "Station de Ski -", 
+    "Col d", 
+    "Tunnel d", 
+    "Paravalanche",
+    "CERD d", 
+    "P+R", 
+    "Parc départemental", 
+    "Restriction de Hauteur",
+    "Restrictions de tonnage", 
+    "Restriction de tonnage", 
+    "Restriction de Longueur",
+    "Restriction de Largeur", 
+    "Transit Intercit", 
+    "Transport de matières dangereuses -",
+    "Direction des Routes -",
+    "1-", "2-", "3-", "4-", "5-", "6-", "7-",
+    "1 -", "2 -", "3 -", "4 -", "5 -", "6 -", "7 -"
+];
