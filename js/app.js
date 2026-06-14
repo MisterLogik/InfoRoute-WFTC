@@ -533,4 +533,95 @@ function renderTableView(alerts) {
                         ${displayCross}
                     </div>
                 </td>
-                <td style="font-size:0.75
+                <td style="font-size:0.75rem; white-space:nowrap;">${formatDisplayDate(alert.updated)}</td>
+                <td>${actionsHtml}</td>
+            </tr>
+        `;
+    });
+
+    container.innerHTML = `
+        <table class="tc-table">
+            <thead>
+                <tr>
+                    <th style="width:50px; text-align:center;">Dép</th>
+                    <th style="width:100px;">Nature</th>
+                    <th>Événement & Description</th>
+                    <th style="width:130px;">Début / Màj</th>
+                    <th style="width:110px;">Éditeur WME</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${rowsHtml}
+            </tbody>
+        </table>
+    `;
+    alertsGrid.appendChild(container);
+}
+
+function parseAlertDate(dateStr) {
+    if (!dateStr || dateStr.includes("non spécifiée")) return null;
+    const isoTimestamp = Date.parse(dateStr);
+    if (!isNaN(isoTimestamp)) return new Date(isoTimestamp);
+
+    const frMatch = dateStr.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+    if (frMatch) {
+        const day = parseInt(frMatch[1], 10);
+        const month = parseInt(frMatch[2], 10) - 1;
+        const year = parseInt(frMatch[3], 10);
+        const timeMatch = dateStr.match(/(\d{2}):(\d{2})/);
+        const hours = timeMatch ? parseInt(timeMatch[1], 10) : 0;
+        const minutes = timeMatch ? parseInt(timeMatch[2], 10) : 0;
+        return new Date(year, month, day, hours, minutes);
+    }
+    return null;
+}
+
+function extractEndDate(text) {
+    if (!text) return null;
+    const savoieMatch = text.match(/Fin\s*:\s*(\d{2})\/(\d{2})\/(\d{4})\s*(\d{2}):(\d{2})/);
+    if (savoieMatch) {
+        return new Date(parseInt(savoieMatch[3]), parseInt(savoieMatch[2]) - 1, parseInt(savoieMatch[1]), parseInt(savoieMatch[4]), parseInt(savoieMatch[5]));
+    }
+    const genericMatch = text.match(/(?:jusqu'au|fin|prévue le|au)\s*[:\s]*(\d{2})\/(\d{2})\/(\d{4})/i);
+    if (genericMatch) {
+        return new Date(parseInt(genericMatch[3]), parseInt(genericMatch[2]) - 1, parseInt(genericMatch[1]), 23, 59); 
+    }
+    return null;
+}
+
+function formatDisplayDate(dateStr) {
+    const parsed = parseAlertDate(dateStr);
+    if (!parsed) return dateStr;
+    return parsed.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function updateStats(totalCount, filteredAlerts) {
+    if (statTotal) statTotal.textContent = totalCount;
+    let countsSeverity = { danger: 0, warning: 0, info: 0, blacklist: 0 };
+    const countsDept = {};
+
+    filteredAlerts.forEach(a => {
+        if (countsSeverity[a.computedSeverity] !== undefined) countsSeverity[a.computedSeverity]++;
+        countsDept[a.deptCode] = (countsDept[a.deptCode] || 0) + 1;
+    });
+
+    if (statsBySeverity) {
+        statsBySeverity.innerHTML = `
+            <div class="severity-stat-badge" title="Bloquant Impératif">🔴 <strong>${countsSeverity.danger}</strong></div>
+            <div class="severity-stat-badge" title="À vérifier / Partiel">🟠 <strong>${countsSeverity.warning}</strong></div>
+            <div class="severity-stat-badge" title="Informatif / Mineur">🔘 <strong>${countsSeverity.info}</strong></div>
+            <div class="severity-stat-badge" title="Liste Noire / Obsolète">⚪ <strong>${countsSeverity.blacklist}</strong></div>
+        `;
+    }
+
+    if (statsByDept) {
+        statsByDept.innerHTML = '';
+        const sortedDepts = Object.entries(countsDept).sort((a, b) => b[1] - a[1]);
+        for (const [dept, count] of sortedDepts) {
+            const tag = document.createElement('span');
+            tag.className = 'dept-tag-stat';
+            tag.innerHTML = `📍 <strong>${dept}</strong> : ${count}`;
+            statsByDept.appendChild(tag);
+        }
+    }
+}
