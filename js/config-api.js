@@ -1,20 +1,7 @@
 // CONFIGURATION DU PROXY CORS CLOUDFLARE
 export const PROXY_URL = "https://inforoutefrance-proxy.xtremxlogik.workers.dev/";
 
-// Configuration globale des départements (Requis par app.js)
-export const DEPARTEMENTS_CONFIG = {
-    "73": {
-        name: "Savoie",
-        apiUrlEvents: "https://savoie-route.fr/api/v1/evenements",
-        apiUrlFlash: "https://savoie-route.fr/api/v1/flashsInfo/flashsInfo"
-    },
-    "38": {
-        name: "Isère"
-        // Vous pourrez y ajouter les URLs d'API spécifiques à l'Isère si votre fetcher en a besoin
-    }
-};
-
-// Configuration unique pour la Savoie (73) - Conservée pour la rétrocompatibilité du fetcher
+// Configuration unique pour la Savoie (73)
 export const SAVOIE_CONFIG = {
     name: "Savoie",
     code: "73",
@@ -24,13 +11,13 @@ export const SAVOIE_CONFIG = {
 
 // Liste des IDs catégories officiels de l'API Savoie-Route
 export const SAVOIE_CATEGORIES = {
-    38: "Accident",
-    40: "Bouchon",
-    42: "Travaux",
-    43: "Manifestation",
-    55: "Obstacle",
-    58: "Fermeture",
-    59: "Déviation"
+    38: { name: "Accident", icon: "⚠️", severity: "danger" },
+    40: { name: "Bouchon", icon: "🚗", severity: "warning" },
+    42: { name: "Travaux", icon: "🚧", severity: "warning" },
+    43: { name: "Manifestation", icon: "🚲", severity: "warning" },
+    55: { name: "Obstacle", icon: "🛑", severity: "danger" },
+    58: { name: "Fermeture", icon: "🚫", severity: "danger" },
+    59: { name: "Déviation", icon: "↔️", severity: "warning" }
 };
 
 // Système de détection multi-tags basé sur le texte (Titre / Commentaire)
@@ -44,5 +31,5 @@ export const TAGS_KEYWORDS = {
     "Déviation": ["déviation", "deviation", "itinéraire conseillé"]
 };
 
-// Liste noire demandée (réduite temporairement à "test")
+// Mots-clés définissant une fausse alerte à nettoyer (Règle Liste Noire)
 export const BLACKLIST_KEYWORDS = ["test"];
