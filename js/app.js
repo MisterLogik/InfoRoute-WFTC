@@ -274,32 +274,32 @@ function renderAlerts() {
         }
         alert.computedCategory = calculatedType;
 
+        const closureKeywords = ['coupé', 'coupee', 'coupée', 'coupés', 'coupées', 'barré', 'barrée', 'barrés', 'barrées', 'fermé', 'fermée', 'fermés', 'fermées', 'fermeture'];
+        const mixedKeywords = ['alternat', 'restriction', 'partiel', 'circulation alternée', 'voie impactée', 'neutralisé', 'neutralisation'];
+
+        const hasClosure = closureKeywords.some(kw => titleLower.includes(kw) || crossLower.includes(kw));
+        const hasMixed = mixedKeywords.some(kw => titleLower.includes(kw) || crossLower.includes(kw));
+
         let severity = 'info'; // Gris par défaut
 
-        if (alertStartDate && alertStartDate < oneYearAgo) {
-            severity = 'blacklist'; // Blanche : Hors délai
+        // 1. PRIORITÉ ABSOLUE : Si l'alerte contient un mot-clé de fermeture, on la garde et on détermine sa couleur
+        if (hasClosure) {
+            if (hasMixed) {
+                severity = 'warning'; // ORANGE : Fermeture à vérifier / partielle
+            } else {
+                severity = 'danger';  // ROUGE : Bloquant Impératif (Fermeture complète)
+            }
+        } 
+        // 2. EXCLUSION AUTOMATIQUE (BLANCHE) : Uniquement si aucun mot-clé rouge n'a sauvé l'alerte
+        else if (alertStartDate && alertStartDate < oneYearAgo) {
+            severity = 'blacklist';   // BLANCHE : Hors délai (archivage)
         } 
         else if (BLACKLIST_KEYWORDS.some(kw => titleLower.includes(kw.toLowerCase()) || crossLower.includes(kw.toLowerCase()))) {
-            severity = 'blacklist'; // Blanche : Mots-clés liste noire
+            severity = 'blacklist';   // BLANCHE : Présente dans la liste noire
         } 
+        // 3. RESTE DU FLUX (GRIS)
         else {
-            // Mots-clés liés à une coupure ou fermeture
-            const closureKeywords = ['coupé', 'coupee', 'coupée', 'coupés', 'coupées', 'barré', 'barrée', 'barrés', 'barrées', 'fermé', 'fermée', 'fermés', 'fermées', 'fermeture'];
-            // Mots-clés liés à une atténuation ou double information
-            const mixedKeywords = ['alternat', 'restriction', 'partiel', 'circulation alternée', 'voie impactée', 'neutralisé', 'neutralisation'];
-
-            const hasClosure = closureKeywords.some(kw => titleLower.includes(kw) || crossLower.includes(kw));
-            const hasMixed = mixedKeywords.some(kw => titleLower.includes(kw) || crossLower.includes(kw));
-
-            if (hasClosure) {
-                if (hasMixed) {
-                    severity = 'warning'; // ORANGE : Fermeture mélangée (ex: avec alternance / restriction)
-                } else {
-                    severity = 'danger';  // ROUGE : Fermeture complète obligatoire
-                }
-            } else {
-                severity = 'info';        // GRIS : Accident seul, simple alternat, ou info routière
-            }
+            severity = 'info';        // GRIS : Accident sans fermeture, simple alternat ou info mineure
         }
 
         alert.computedSeverity = severity;
