@@ -32,41 +32,51 @@ async function fetchStandardEvents() {
                 try {
                     const detail = await gmPostJson(`${SAVOIE_CONFIG.apiUrlEvents}/allData`, { idAll: item.idtInfo });
                     let d = Array.isArray(detail) ? detail[0] : (detail?.Detail_allData?.[0] || detail);
-                    
+
                     if (!d) return null;
 
                     const lat = parseFloat(d.Latitude || item.latitude || d.latitude);
                     const lon = parseFloat(d.Longitude || item.longitude || d.longitude);
+
                     const axe = d.Axe || item.axe || '';
                     const commune = d.Commune || item.commune || '';
-                    const frType = d.FRType || item.libelleType || SAVOIE_CATEGORIES[catId];
-                    
+                    const frType = d.FRType || item.libelleType || '';
                     const titre = [frType, axe, commune].filter(Boolean).join(' — ') || `Alerte #${item.idtInfo}`;
-                    const commentaireClean = cleanText(d.Commentaire || item.commentaire || '');
+
+                    let chunks = [];
+                    const typeSoustype = [d.FRType, d.FRsousType].map(s => s ? s.trim() : '').filter(Boolean).join(' - ');
+                    if (typeSoustype) chunks.push(`Type : ${typeSoustype}`);
+                    if (d.FRTrafficConstrictionType && d.FRTrafficConstrictionType !== "null") chunks.push(`Impact : ${d.FRTrafficConstrictionType.trim()}`);
+                    if (d.Debut) chunks.push(`Début : ${d.Debut}`);
+                    if (d.Fin) chunks.push(`Fin : ${d.Fin}`);
+                    
+                    const commBrut = d.Commentaire || item.commentaire;
+                    if (commBrut && commBrut !== "null") chunks.push(`\nDétails :\n${cleanText(commBrut)}`);
+
+                    const catConfig = SAVOIE_CATEGORIES[catId];
 
                     return {
-                        id: `73-evt-${item.idtInfo}`,
-                        isFlash: false,
-                        originalCategory: SAVOIE_CATEGORIES[catId],
+                        id: `73-${item.idtInfo}`,
+                        type: catConfig.name,
                         title: titre,
-                        // On isole strictement la description textuelle brute ici
-                        description: commentaireClean, 
-                        // On extrait l'impact spécifique de la Savoie de façon isolée
-                        impact: (d.FRTrafficConstrictionType && d.FRTrafficConstrictionType !== "null") ? d.FRTrafficConstrictionType.trim() : null,
+                        cross: chunks.join('\n').trim(),
+                        updated: d.Debut || "Récemment",
                         startRaw: d.Debut || null,
                         endRaw: d.Fin || null,
+                        severity: catConfig.severity,
                         lat: isNaN(lat) ? null : lat,
                         lon: isNaN(lon) ? null : lon
                     };
                 } catch (err) {
+                    console.warn(`Erreur détails alerte Savoie #${item.idtInfo}`, err);
                     return null;
                 }
             });
 
-            const resolvedDetails = await Promise.all(detailPromises);
-            return resolvedDetails.filter(Boolean);
+            const resDetails = await Promise.all(detailPromises);
+            return resDetails.filter(Boolean);
         } catch (err) {
-            console.warn(`Erreur sur la catégorie Savoie ${catId}:`, err);
+            console.warn(`Erreur liste Savoie Catégorie ${catId}`, err);
             return [];
         }
     });
@@ -75,25 +85,25 @@ async function fetchStandardEvents() {
     return results.flat();
 }
 
-// --- Récupération des Flash Infos (Alertes Urgentes) ---
+// --- Récupération des Flash Infos (1 étape) ---
 async function fetchFlashInfos() {
     try {
         const flashList = await gmPostJson(SAVOIE_CONFIG.apiUrlFlash, {});
         if (!Array.isArray(flashList)) return [];
 
-        return flashList.map((flash, index) => {
+        return flashList.map(flash => {
             const lat = parseFloat(flash.latitude || flash.Latitude);
             const lon = parseFloat(flash.longitude || flash.Longitude);
-            
+
             return {
-                id: `73-flash-${flash.id || index}`,
-                isFlash: true,
-                originalCategory: "Flash Info",
+                id: `73-flash-${flash.idtFlashsInfo || Math.random()}`,
+                type: "Flash Info",
                 title: cleanText(flash.titre || flash.Titre || "⚠️ ALERTE FLASH SÉCURITÉ"),
                 description: cleanText(flash.texte || flash.Texte || flash.commentaire || ""),
                 updated: flash.date_deb || flash.Creation || "En cours",
                 startRaw: flash.date_deb || null,
                 endRaw: flash.date_fin || null,
+                severity: "danger",
                 lat: isNaN(lat) ? null : lat,
                 lon: isNaN(lon) ? null : lon
             };
