@@ -49,8 +49,10 @@ async function fetchStandardEvents() {
                         isFlash: false,
                         originalCategory: SAVOIE_CATEGORIES[catId],
                         title: titre,
-                        description: commentaireClean,
-                        updated: d.Debut || d.Creation || "Récemment",
+                        // On isole strictement la description textuelle brute ici
+                        description: commentaireClean, 
+                        // On extrait l'impact spécifique de la Savoie de façon isolée
+                        impact: (d.FRTrafficConstrictionType && d.FRTrafficConstrictionType !== "null") ? d.FRTrafficConstrictionType.trim() : null,
                         startRaw: d.Debut || null,
                         endRaw: d.Fin || null,
                         lat: isNaN(lat) ? null : lat,
