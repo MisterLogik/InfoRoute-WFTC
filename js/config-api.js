@@ -1,64 +1,35 @@
 // CONFIGURATION DU PROXY CORS CLOUDFLARE
-// Remplace par l'URL de ton Worker (ex: https://mon-proxy.mon-nom.workers.dev/)
-// export const PROXY_URL = "https://hub-inforoutefrance.xtremxlogik.workers.dev/";
 export const PROXY_URL = "https://inforoutefrance-proxy.xtremxlogik.workers.dev/";
 
-// Les catégories officielles trouvées dans le script WME Savoie
+// Configuration unique pour la Savoie (73)
+export const SAVOIE_CONFIG = {
+    name: "Savoie",
+    code: "73",
+    apiUrlEvents: "https://savoie-route.fr/api/v1/evenements",
+    apiUrlFlash: "https://savoie-route.fr/api/v1/flashsInfo/flashsInfo"
+};
+
+// Liste des IDs catégories officiels de l'API Savoie-Route
 export const SAVOIE_CATEGORIES = {
-    38: { name: "Accident", icon: "⚠️", severity: "danger" },
-    40: { name: "Bouchon", icon: "🚗", severity: "warning" },
-    42: { name: "Travaux", icon: "🚧", severity: "warning" },
-    43: { name: "Manifestation", icon: "🚲", severity: "warning" },
-    55: { name: "Obstacle", icon: "🛑", severity: "danger" },
-    58: { name: "Fermeture", icon: "🚫", severity: "danger" },
-    59: { name: "Déviation", icon: "↔️", severity: "warning" }
+    38: "Accident",
+    40: "Bouchon",
+    42: "Travaux",
+    43: "Manifestation",
+    55: "Obstacle",
+    58: "Fermeture",
+    59: "Déviation"
 };
 
-export const DEPARTEMENTS_CONFIG = {
-    "38": {
-        name: "Isère",
-        format: "turbolead-geojson",
-        sources: [
-            { url: 'https://itinisere.fr/mod_turbolead/mod/inforoute/index.php?action=367&layer=layer-deviation', name: 'Déviation' },
-            { url: 'https://itinisere.fr/mod_turbolead/mod/inforoute/index.php?action=367&layer=layer-repere_autre', name: 'Autre' },
-            { url: 'https://itinisere.fr/mod_turbolead/mod/inforoute/index.php?action=367&layer=layer-repere_travaux', name: 'Travaux' },
-            { url: 'https://itinisere.fr/mod_turbolead/mod/inforoute/index.php?action=367&layer=layer-lane-closures', name: 'Voie' },
-            { url: 'https://itinisere.fr/mod_turbolead/mod/inforoute/index.php?action=367&layer=Layer-barreau_fh', name: 'Hiver' }
-        ]
-    },
-    "73": {
-        name: "Savoie",
-        format: "savoie-api",
-        apiUrlBase: "https://savoie-route.fr/api/v1/evenements"
-    },
-    "74": {
-        name: "Haute-Savoie",
-        format: "turbolead-geojson",
-        sources: [
-            { url: 'https://www.inforoute74.fr/mod_turbolead/mod/inforoute/index.php?action=374', name: 'Fermeture'},
-            { url: 'https://www.inforoute74.fr/mod_turbolead/mod/inforoute/index.php?action=367', name: 'Déviation' }
-            //{ url: 'https://www.inforoute74.fr/mod_turbolead/mod/inforoute/index.php?action=373', name: 'Waze' }
-        ]
-    }
+// Système de détection multi-tags basé sur le texte (Titre / Commentaire)
+export const TAGS_KEYWORDS = {
+    "Accident": ["accident"],
+    "Bouchon": ["bouchon", "embouteillage", "ralentissement", "bouchons"],
+    "Travaux": ["travaux", "chantier", "alternat", "rabotage", "goudronnage"],
+    "Manifestation": ["manifestation", "sport", "course", "cycliste"],
+    "Obstacle": ["obstacle", "éboulement", "arbre", "pierre", "matériaux"],
+    "Fermeture": ["fermeture", "coupé", "coupée", "barré", "barrée", "fermé", "fermée", "interdit", "interdite"],
+    "Déviation": ["déviation", "deviation", "itinéraire conseillé"]
 };
 
-// Mots-clés définissant une fausse alerte à nettoyer (Règle 4)
-export const BLACKLIST_KEYWORDS = [
-    "Station de Ski -", 
-    "Col d", 
-    "Tunnel d", 
-    "Paravalanche",
-    "CERD d", 
-    "P+R", 
-    "Parc départemental", 
-    "Restriction de Hauteur",
-    "Restrictions de tonnage", 
-    "Restriction de tonnage", 
-    "Restriction de Longueur",
-    "Restriction de Largeur", 
-    "Transit Intercit", 
-    "Transport de matières dangereuses -",
-    "Direction des Routes -",
-    "1-", "2-", "3-", "4-", "5-", "6-", "7-",
-    "1 -", "2 -", "3 -", "4 -", "5 -", "6 -", "7 -"
-];
+// Liste noire demandée (réduite temporairement à "test")
+export const BLACKLIST_KEYWORDS = ["test"];
