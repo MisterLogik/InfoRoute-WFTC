@@ -12,7 +12,6 @@ const btnResetFilters = document.getElementById('btn-reset-filters');
 const btnToggleSort = document.getElementById('btn-toggle-sort');
 
 const btnQuickToday = document.getElementById('btn-quick-today');
-const btnQuickWeek = document.getElementById('btn-quick-week');
 const btnViewGrid = document.getElementById('btn-view-grid');
 const btnViewTable = document.getElementById('btn-view-table');
 
@@ -35,47 +34,58 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function initFilters() {
     // Remplissage dynamique du sélecteur de nature basé sur nos tags globaux
-    filterType.innerHTML = '<option value="all">Tous les types d\'alerte</option>';
-    filterType.innerHTML += '<option value="Flash Info">⭐ Alertes FLASH</option>';
-    for (const tag of Object.keys(TAGS_KEYWORDS)) {
-        const option = document.createElement('option');
-        option.value = tag;
-        option.textContent = tag;
-        filterType.appendChild(option);
+    if (filterType) {
+        filterType.innerHTML = '<option value="all">Tous les types d\'alerte</option>';
+        filterType.innerHTML += '<option value="Flash Info">⭐ Alertes FLASH</option>';
+        for (const tag of Object.keys(TAGS_KEYWORDS)) {
+            const option = document.createElement('option');
+            option.value = tag;
+            option.textContent = tag;
+            filterType.appendChild(option);
+        }
     }
 }
 
 function setupEventListeners() {
-    btnSyncAll.addEventListener('click', synchronizeData);
-    btnResetFilters.addEventListener('click', resetAllFilters);
-    btnToggleSort.addEventListener('click', () => {
-        sortAscending = !sortAscending;
-        btnToggleSort.innerHTML = sortAscending ? '⬇️ Tri : Date (Anciens d\'abord)' : '⬇️ Tri : Date (Récents d\'abord)';
-        renderAlerts();
-    });
+    if (btnSyncAll) btnSyncAll.addEventListener('click', synchronizeData);
+    if (btnResetFilters) btnResetFilters.addEventListener('click', resetAllFilters);
     
-    btnQuickToday.addEventListener('click', () => { resetAllFilters(); renderAlerts(); });
-    btnViewGrid.addEventListener('click', () => { currentView = 'grid'; renderAlerts(); });
-    btnViewTable.addEventListener('click', () => { currentView = 'table'; renderAlerts(); });
+    if (btnToggleSort) {
+        btnToggleSort.addEventListener('click', () => {
+            sortAscending = !sortAscending;
+            btnToggleSort.innerHTML = sortAscending ? '⬇️ Tri : Date (Anciens d\'abord)' : '⬇️ Tri : Date (Récents d\'abord)';
+            renderAlerts();
+        });
+    }
+    
+    if (btnQuickToday) {
+        btnQuickToday.addEventListener('click', () => { 
+            resetAllFilters(); 
+            renderAlerts(); 
+        });
+    }
+    
+    if (btnViewGrid) btnViewGrid.addEventListener('click', () => { currentView = 'grid'; renderAlerts(); });
+    if (btnViewTable) btnViewTable.addEventListener('click', () => { currentView = 'table'; renderAlerts(); });
 
-    searchBar.addEventListener('input', renderAlerts);
-    filterType.addEventListener('change', renderAlerts);
-    filterSeverity.addEventListener('change', renderAlerts);
-    filterShowBlacklist.addEventListener('change', renderAlerts); 
+    if (searchBar) searchBar.addEventListener('input', renderAlerts);
+    if (filterType) filterType.addEventListener('change', renderAlerts);
+    if (filterSeverity) filterSeverity.addEventListener('change', renderAlerts);
+    if (filterShowBlacklist) filterShowBlacklist.addEventListener('change', renderAlerts); 
 }
 
 function resetAllFilters() {
-    searchBar.value = '';
-    filterType.value = 'all';
-    filterSeverity.value = 'all';
-    filterShowBlacklist.checked = false; 
+    if (searchBar) searchBar.value = '';
+    if (filterType) filterType.value = 'all';
+    if (filterSeverity) filterSeverity.value = 'all';
+    if (filterShowBlacklist) filterShowBlacklist.checked = false; 
     renderAlerts();
 }
 
 // --- Synchronisation ---
 async function synchronizeData() {
-    loader.classList.remove('hidden');
-    btnSyncAll.disabled = true;
+    if (loader) loader.classList.remove('hidden');
+    if (btnSyncAll) btnSyncAll.disabled = true;
 
     const rawAlerts = await fetchSavoieData();
     
@@ -83,19 +93,19 @@ async function synchronizeData() {
     window.ALL_ALERTS = rawAlerts.map(alert => {
         const textTarget = `${alert.title} ${alert.description}`.toLowerCase();
         
-        // 1. Système d'analyse Multi-Tags
+        // 1. Système d'analyse Multi-Tags basé sur les mots-clés textuels
         let detectedTags = [];
         for (const [tag, keywords] of Object.entries(TAGS_KEYWORDS)) {
             if (keywords.some(kw => textTarget.includes(kw))) {
                 detectedTags.push(tag);
             }
         }
-        // Fallback sur la catégorie d'origine de l'API si aucun mot-clé spécifique n'a matché
+        // Fallback sur la catégorie d'origine de l'API Savoie si aucun mot-clé spécifique n'a matché
         if (detectedTags.length === 0 && alert.originalCategory) {
             detectedTags.push(alert.originalCategory);
         }
 
-        // 2. Évaluation de la sévérité
+        // 2. Évaluation de la sévérité visuelle
         let severity = 'info';
         if (BLACKLIST_KEYWORDS.some(kw => textTarget.includes(kw.toLowerCase()))) {
             severity = 'blacklist';
@@ -118,8 +128,8 @@ async function synchronizeData() {
     const nowTime = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
     localStorage.setItem('savoie_last_sync_time', nowTime);
 
-    loader.classList.add('hidden');
-    btnSyncAll.disabled = false;
+    if (loader) loader.classList.add('hidden');
+    if (btnSyncAll) btnSyncAll.disabled = false;
     
     updateSyncStatus(nowTime);
     renderAlerts();
@@ -136,26 +146,26 @@ function loadFromLocalStorage() {
 }
 
 function updateSyncStatus(time) {
-    syncStatus.textContent = `Dernière synchro : ${time}`;
+    if (syncStatus) syncStatus.textContent = `Dernière synchro : ${time}`;
 }
 
 // --- Moteur de rendu filtré ---
 function renderAlerts() {
-    const searchQuery = searchBar.value.toLowerCase().trim();
-    const selectedType = filterType.value;
-    const selectedSeverity = filterSeverity.value;
-    const showBlacklist = filterShowBlacklist.checked;
+    const searchQuery = searchBar ? searchBar.value.toLowerCase().trim() : '';
+    const selectedType = filterType ? filterType.value : 'all';
+    const selectedSeverity = filterSeverity ? filterSeverity.value : 'all';
+    const showBlacklist = filterShowBlacklist ? filterShowBlacklist.checked : false;
 
     let filtered = window.ALL_ALERTS.filter(alert => {
-        // Sécurité Liste Noire
+        // Gestion de la Liste Noire
         if (alert.computedSeverity === 'blacklist' && !showBlacklist && selectedSeverity !== 'blacklist') {
             return false;
         }
 
-        // Match Recherche textuelle
+        // Match de la recherche textuelle globale
         const matchSearch = alert.title.toLowerCase().includes(searchQuery) || alert.description.toLowerCase().includes(searchQuery);
         
-        // Match Multi-Tags
+        // Match du filtrage par Multi-Tags
         let matchType = false;
         if (selectedType === 'all') {
             matchType = true;
@@ -165,19 +175,20 @@ function renderAlerts() {
             matchType = alert.computedTags.includes(selectedType);
         }
 
-        // Match Gravité
+        // Match du filtrage par Gravité visuelle
         const matchSeverity = selectedSeverity === 'all' || alert.computedSeverity === selectedSeverity;
 
         return matchSearch && matchType && matchSeverity;
     });
 
-    // Tri temporel
+    // Tri temporel dynamique
     filtered.sort((a, b) => {
         const dateA = a.startRaw ? new Date(a.startRaw) : new Date(0);
         const dateB = b.startRaw ? new Date(b.startRaw) : new Date(0);
         return sortAscending ? dateA - dateB : dateB - dateA;
     });
 
+    if (!alertsGrid) return;
     alertsGrid.innerHTML = '';
 
     if (filtered.length === 0) {
@@ -195,42 +206,90 @@ function renderAlerts() {
     updateStats(filtered.length, filtered);
 }
 
-// --- Vue en Grille ---
+// --- Système intelligent d'extraction et formatage des dates ---
+function extractAndFormatDates(alert) {
+    let debut = alert.startRaw ? formatDateString(alert.startRaw) : null;
+    let fin = alert.endRaw ? formatDateString(alert.endRaw) : null;
+
+    // Analyse Regex de secours si la date de début est vide dans l'API
+    if (!debut && alert.description) {
+        const matchStart = alert.description.match(/(?:Début|Du)\s*[:\s]*(\d{2}\/\d{2}\/\d{4}(?:\s*\d{2}:\d{2})?)/i);
+        if (matchStart) debut = matchStart[1];
+    }
+
+    // Analyse Regex de secours si la date de fin est vide dans l'API
+    if (!fin && alert.description) {
+        const matchEnd = alert.description.match(/(?:Fin|jusqu'au|au)\s*[:\s]*(\d{2}\/\d{2}\/\d{4}(?:\s*\d{2}:\d{2})?)/i);
+        if (matchEnd) fin = matchEnd[1];
+    }
+
+    return { debut, fin };
+}
+
+function formatDateString(dateStr) {
+    if (!dateStr || dateStr === "Récemment" || dateStr === "En cours") return null;
+    const parsed = Date.parse(dateStr);
+    if (!isNaN(parsed)) {
+        return new Date(parsed).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+    return dateStr;
+}
+
+// --- Rendu : Vue en Grille (Structure demandée) ---
 function renderGridView(alerts) {
     alertsGrid.className = "alerts-grid";
     alerts.forEach(alert => {
         const card = document.createElement('div');
         card.className = `card ${alert.computedSeverity} ${alert.isFlash ? 'flash-card' : ''}`;
         
+        // Tags du haut joints par un espace (alignés à gauche par CSS/HTML)
         const tagsHtml = alert.computedTags.map(t => `<span class="badge-tag">${t}</span>`).join(' ');
+        
+        // Extraction des métadonnées temporelles brutes ou textuelles
+        const dates = extractAndFormatDates(alert);
+        
+        // Préparation des blocs conditionnels (si non disponibles, ils restent vides)
+        const impactHtml = alert.impact ? `<div class="card-impact" style="font-size: 0.9rem; color: #ffca28; margin-top: 5px;"><strong>Impact :</strong> ${alert.impact}</div>` : '';
+        const debutHtml = dates.debut ? `<div><strong>Début :</strong> ${dates.debut}</div>` : '';
+        const finHtml = dates.fin ? `<div><strong>Fin :</strong> ${dates.fin}</div>` : '';
         
         let wmeActionHtml = '';
         if (alert.lat && alert.lon) {
             wmeActionHtml = `
-                <div class="wme-actions">
+                <div class="wme-actions" style="margin-top: 15px;">
                     <a href="https://waze.com/fr/editor?env=row&lat=${alert.lat}&lon=${alert.lon}&zoomLevel=19" target="_blank" class="btn-wme wme-prod">WME Production</a>
                     <a href="https://beta.waze.com/fr/editor?env=row&lat=${alert.lat}&lon=${alert.lon}&zoomLevel=19" target="_blank" class="btn-wme wme-beta">WME Beta</a>
                 </div>
             `;
         }
 
+        // Rendu final respectant rigoureusement l'ordre demandé
         card.innerHTML = `
-            <div class="card-header">
-                <div class="tags-container">${tagsHtml}</div>
-                ${alert.isFlash ? '<span class="flash-badge">⚡ URGENT</span>' : ''}
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <div class="tags-container" style="text-align: left;">${tagsHtml}</div>
+                <div class="dept-badge" style="text-align: right; font-weight: bold; font-size: 0.85rem; opacity: 0.8;">Dep. 73</div>
             </div>
-            <div class="card-title">${alert.title}</div>
-            <div class="card-body" style="white-space: pre-wrap;">${alert.description || "Aucun détail complémentaire."}</div>
-            <div class="card-footer">
-                <div class="date-badge">📅 ${alert.updated}</div>
-                ${wmeActionHtml}
+            
+            <div class="card-title" style="font-weight: bold; font-size: 1.1rem; margin-bottom: 4px;">${alert.title}</div>
+            
+            ${impactHtml}
+            
+            <div class="card-spacer" style="height: 12px;"></div>
+            
+            <div class="card-body" style="white-space: pre-wrap; font-size: 0.95rem; line-height: 1.4; margin-bottom: 15px;">${alert.description || "Aucun détail complémentaire."}</div>
+            
+            <div class="card-footer-dates" style="font-size: 0.85rem; color: #bbb; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px; margin-bottom: 5px;">
+                ${debutHtml}
+                ${finHtml}
             </div>
+            
+            ${wmeActionHtml}
         `;
         alertsGrid.appendChild(card);
     });
 }
 
-// --- Vue en Tableau ---
+// --- Rendu : Vue en Tableau (Alternative épurée) ---
 function renderTableView(alerts) {
     alertsGrid.className = "";
     const container = document.createElement('div');
@@ -283,18 +342,21 @@ function renderTableView(alerts) {
     alertsGrid.appendChild(container);
 }
 
+// --- Statistiques et compteurs globaux ---
 function updateStats(totalCount, filteredAlerts) {
-    statTotal.textContent = totalCount;
+    if (statTotal) statTotal.textContent = totalCount;
     let counts = { danger: 0, warning: 0, info: 0, blacklist: 0 };
 
     filteredAlerts.forEach(a => {
         if (counts[a.computedSeverity] !== undefined) counts[a.computedSeverity]++;
     });
 
-    statsBySeverity.innerHTML = `
-        <div class="severity-stat-badge" title="Bloquant / Urgent">🔴 <strong>${counts.danger}</strong></div>
-        <div class="severity-stat-badge" title="Perturbation">🟠 <strong>${counts.warning}</strong></div>
-        <div class="severity-stat-badge" title="Information">🔘 <strong>${counts.info}</strong></div>
-        <div class="severity-stat-badge" title="Masqué (Test)">⚪ <strong>${counts.blacklist}</strong></div>
-    `;
+    if (statsBySeverity) {
+        statsBySeverity.innerHTML = `
+            <div class="severity-stat-badge" title="Bloquant / Urgent">🔴 <strong>${counts.danger}</strong></div>
+            <div class="severity-stat-badge" title="Perturbation">🟠 <strong>${counts.warning}</strong></div>
+            <div class="severity-stat-badge" title="Information">🔘 <strong>${counts.info}</strong></div>
+            <div class="severity-stat-badge" title="Masqué (Test)">⚪ <strong>${counts.blacklist}</strong></div>
+        `;
+    }
 }
