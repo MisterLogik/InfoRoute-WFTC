@@ -11,12 +11,12 @@ const btnSyncAll = document.getElementById('btn-sync-all');
 const btnResetFilters = document.getElementById('btn-reset-filters');
 const btnToggleSort = document.getElementById('btn-toggle-sort');
 
-// Boutons temporels
+// Boutons temporels (Sidebar)
 const btnQuickToday = document.getElementById('btn-quick-today');
 const btnQuickWeek = document.getElementById('btn-quick-week');
 const btnQuickNextWeek = document.getElementById('btn-quick-next-week');
 const btnQuickMonth = document.getElementById('btn-quick-month');
-const btnQuickNextMonth = document.getElementById('btn-quick-next-month'); // Ajout
+const btnQuickNextMonth = document.getElementById('btn-quick-next-month'); 
 
 const btnViewGrid = document.getElementById('btn-view-grid');
 const btnViewTable = document.getElementById('btn-view-table');
@@ -66,7 +66,7 @@ function setupEventListeners() {
     btnQuickWeek.addEventListener('click', setFilterWeek);
     btnQuickNextWeek.addEventListener('click', setFilterNextWeek);
     btnQuickMonth.addEventListener('click', setFilterMonth);
-    btnQuickNextMonth.addEventListener('click', setFilterNextMonth); // Ajout
+    btnQuickNextMonth.addEventListener('click', setFilterNextMonth); 
 
     btnViewGrid.addEventListener('click', () => { switchView('grid'); });
     btnViewTable.addEventListener('click', () => { switchView('table'); });
@@ -124,7 +124,7 @@ function getYYYYMMDD(date) {
     return `${yyyy}-${mm}-${dd}`;
 }
 
-// --- FILTRES RAPIDES REPARAMÉTRÉS ---
+// --- FILTRES RAPIDES TEMPORELS ---
 function setFilterToday() {
     resetAllFilters();
     filterCurrentOnly.checked = true;
@@ -135,7 +135,7 @@ function setFilterWeek() {
     resetAllFilters();
     const start = new Date();
     const end = new Date();
-    end.setDate(start.getDate() + 7); // J + 7 inclus
+    end.setDate(start.getDate() + 7); 
 
     filterDateStartLogic.value = 'after_or_on';
     filterDateStart.value = getYYYYMMDD(start);
@@ -149,10 +149,10 @@ function setFilterWeek() {
 function setFilterNextWeek() {
     resetAllFilters();
     const start = new Date();
-    start.setDate(start.getDate() + 7); // Début à J + 7
+    start.setDate(start.getDate() + 7); 
     
     const end = new Date();
-    end.setDate(start.getDate() + 7); // Fin à J + 14 inclus
+    end.setDate(start.getDate() + 7); 
 
     filterDateStartLogic.value = 'after_or_on';
     filterDateStart.value = getYYYYMMDD(start);
@@ -166,7 +166,7 @@ function setFilterNextWeek() {
 function setFilterMonth() {
     resetAllFilters();
     const start = new Date();
-    const end = new Date(start.getFullYear(), start.getMonth() + 1, 0); // Dernier jour du mois en cours
+    const end = new Date(start.getFullYear(), start.getMonth() + 1, 0); 
 
     filterDateStartLogic.value = 'after_or_on';
     filterDateStart.value = getYYYYMMDD(start);
@@ -192,22 +192,17 @@ function setFilterNextMonth() {
     renderAlerts();
 }
 
-// --- GESTION DES FLUX ---
-// --- GESTION DES FLUX SÉCURISÉE ---
-// --- GESTION DES FLUX SÉCURISÉE ---
+// --- GESTION DES FLUX SÉCURISÉE (ANTI-DOMINO) ---
 async function synchronizeAll() {
     loader.classList.remove('hidden');
     btnSyncAll.disabled = true;
     
-    // Tableau temporaire pour accumuler uniquement les alertes valides
     const validAlerts = [];
 
-    // On crée une promesse sécurisée par département
     const fetchPromises = Object.keys(DEPARTEMENTS_CONFIG).map(async (code) => {
         try {
             const deptAlerts = await fetchDeptData(code);
             
-            // Sécurité : On vérifie que la source renvoie bien un tableau de données
             if (deptAlerts && Array.isArray(deptAlerts)) {
                 const detectionTime = new Date().toISOString();
                 
@@ -217,36 +212,18 @@ async function synchronizeAll() {
                     discoveredAt: alert.discoveredAt || detectionTime 
                 }));
                 
-                // On ajoute les alertes réussies au tableau global
                 validAlerts.push(...processed);
             } else {
-                console.warn(`[App] Le département ${code} a renvoyé un format invalide ou vide.`);
+                console.warn(`[App] Le département ${code} a renvoyé un format invalide.`);
             }
         } catch (error) {
-            // Si un département plante (ex: le 74 renvoie du HTML), on l'isole ici
-            console.error(`[App] Échec de récupération pour le département ${code} (Serveur distant défaillant) :`, error);
+            console.error(`[App] Échec isolé sur le département ${code} (Serveur distant défaillant) :`, error);
         }
     });
 
-    // On attend que TOUTES les requêtes soient traitées (qu'elles aient réussi ou échoué)
     await Promise.all(fetchPromises);
 
-    // On injecte les données récoltées sans coupure du script
     window.ALL_ALERTS = validAlerts; 
-
-    localStorage.setItem('waze_tc_alerts', JSON.stringify(window.ALL_ALERTS));
-    const now = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-    localStorage.setItem('waze_tc_last_sync', now);
-
-    loader.classList.add('hidden');
-    btnSyncAll.disabled = false;
-    
-    updateSyncStatus(now);
-    renderAlerts(); // Relance l'affichage des départements opérationnels
-}
-
-    const results = await Promise.all(fetchPromises);
-    window.ALL_ALERTS = results.flat(); 
 
     localStorage.setItem('waze_tc_alerts', JSON.stringify(window.ALL_ALERTS));
     const now = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
@@ -289,15 +266,14 @@ function renderAlerts() {
 
     const now = new Date();
     const oneYearAgo = new Date();
-    oneYearAgo.setFullYear(now.getFullYear() - 1); // Pour la sécurité obsolescence
+    oneYearAgo.setFullYear(now.getFullYear() - 1); 
 
     let filtered = window.ALL_ALERTS.filter(alert => {
         const titleLower = alert.title.toLowerCase();
         const crossLower = alert.cross.toLowerCase();
         const alertStartDate = parseAlertDate(alert.updated);
 
-        // --- SÉCURITÉ ANTI-POLLUTION DES DATES D'IMPORT ---
-        // Si un filtre temporel est actif mais qu'aucune date réelle n'est présente, on l'exclut d'office
+        // --- EXCLUSION DES ALERTES SANS DATE SI FILTRE ACTIF ---
         const isAnyDateFilterActive = currentOnly || startTargetStr || endTargetStr;
         if (isAnyDateFilterActive && !alertStartDate) {
             return false;
@@ -316,11 +292,11 @@ function renderAlerts() {
         // 2. MOTEUR ANALYTIQUE DE QUALIFICATION DES GRAVITÉS
         let severity = 'warning'; 
 
-        // 🛑 SÉCURITÉ : Plus de 1 an -> Catégorie Blanche (Priorité absolue)
+        // 🛑 SÉCURITÉ ARCHIVAGE : Plus de 1 an -> Catégorie Blanche d'office
         if (alertStartDate && alertStartDate < oneYearAgo) {
             severity = 'blacklist'; 
         } 
-        // Détection Liste Noire classique
+        // Liste Noire par mot-clé
         else if (BLACKLIST_KEYWORDS.some(kw => titleLower.includes(kw.toLowerCase()) || crossLower.includes(kw.toLowerCase()))) {
             severity = 'blacklist'; 
         } 
@@ -382,7 +358,7 @@ function renderAlerts() {
 
         if (!matchSearch || !matchDept || !matchType || !matchSeverity) return false;
 
-        // --- FILTRES DE DATES (Seulement si l'alerte a une date valide) ---
+        // --- LOGIQUE DES FILTRES DE DATES STRONGS ---
         if (currentOnly && alertStartDate) {
             if (alertStartDate > now) return false;
             const actualEndDate = extractEndDate(alert.cross);
@@ -400,7 +376,6 @@ function renderAlerts() {
         }
 
         if (endTargetStr && alertStartDate) {
-            // Extraction de la fin ou fallback sur le début si absent du texte
             const actualEndDate = extractEndDate(alert.cross) || alertStartDate; 
 
             const target = new Date(endTargetStr);
@@ -415,7 +390,7 @@ function renderAlerts() {
         return true;
     });
 
-    // Tri (Garde la date d'import en ultime secours uniquement pour ordonner la table/grille)
+    // Tri (Utilisation subsidiaire de discoveredAt uniquement pour structurer l'affichage)
     filtered.sort((a, b) => {
         const dateA = parseAlertDate(a.updated) || (a.discoveredAt ? new Date(a.discoveredAt) : new Date(0));
         const dateB = parseAlertDate(b.updated) || (b.discoveredAt ? new Date(b.discoveredAt) : new Date(0));
