@@ -274,34 +274,31 @@ function renderAlerts() {
         }
         alert.computedCategory = calculatedType;
 
-        const closureKeywords = ['coupé', 'coupee', 'coupée', 'coupés', 'coupées', 'barré', 'barrée', 'barrés', 'barrées', 'fermé', 'fermée', 'fermés', 'fermées', 'fermeture'];
-        const mixedKeywords = ['alternat', 'restriction', 'partiel', 'circulation alternée', 'voie impactée', 'neutralisé', 'neutralisation'];
+        const closureKeywords = ['coupé', 'coupee', 'coupée', 'coupés', 'coupées', 'barré', 'barrée', 'barrés', 'barrées', 'fermé', 'fermée', 'fermés', 'fermées', 'fermeture', 'interrompue'];
 
-        const hasClosure = closureKeywords.some(kw => titleLower.includes(kw) || crossLower.includes(kw));
-        const hasMixed = mixedKeywords.some(kw => titleLower.includes(kw) || crossLower.includes(kw));
-
-        let severity = 'info'; // Gris par défaut
-
-        // 1. PRIORITÉ ABSOLUE : Si l'alerte contient un mot-clé de fermeture, on la garde et on détermine sa couleur
-        if (hasClosure) {
-            if (hasMixed) {
-                severity = 'warning'; // ORANGE : Fermeture à vérifier / partielle
-            } else {
-                severity = 'danger';  // ROUGE : Bloquant Impératif (Fermeture complète)
+        const titleLower = alert.title.toLowerCase();
+        const detailLower = (alert.cross || "").toLowerCase();
+        const combinedText = titleLower + " " + detailLower;
+        
+        // 1. DÉTECTION PRIORITAIRE : Si c'est une fermeture, on ignore la blacklist
+        const isClosure = closureKeywords.some(kw => combinedText.includes(kw));
+        
+        let severity = 'info';
+        
+        if (isClosure) {
+            // Si fermeture, on classe en danger ou warning
+            severity = combinedText.includes('alternat') ? 'warning' : 'danger';
+        } else {
+            // 2. SINON : On vérifie la blacklist (seulement si ce n'est pas une fermeture)
+            const isBlacklisted = BLACKLIST_KEYWORDS.some(kw => 
+                titleLower.includes(kw.toLowerCase()) || detailLower.includes(kw.toLowerCase())
+            );
+            
+            if (isBlacklisted || (alert.updated && isOldAlert(alert.updated))) {
+                severity = 'blacklist';
             }
-        } 
-        // 2. EXCLUSION AUTOMATIQUE (BLANCHE) : Uniquement si aucun mot-clé rouge n'a sauvé l'alerte
-        else if (alertStartDate && alertStartDate < oneYearAgo) {
-            severity = 'blacklist';   // BLANCHE : Hors délai (archivage)
-        } 
-        else if (BLACKLIST_KEYWORDS.some(kw => titleLower.includes(kw.toLowerCase()) || crossLower.includes(kw.toLowerCase()))) {
-            severity = 'blacklist';   // BLANCHE : Présente dans la liste noire
-        } 
-        // 3. RESTE DU FLUX (GRIS)
-        else {
-            severity = 'info';        // GRIS : Accident sans fermeture, simple alternat ou info mineure
         }
-
+        
         alert.computedSeverity = severity;
 
         if (alert.computedSeverity === 'blacklist' && !isShowBlacklistChecked && selectedSeverity !== 'blacklist') {
