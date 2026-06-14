@@ -1,84 +1,70 @@
-import { DEPARTEMENTS_CONFIG, SAVOIE_CATEGORIES, PROXY_URL } from './config-api.js';
+import { SAVOIE_CONFIG, SAVOIE_CATEGORIES, PROXY_URL } from './config-api.js';
 
-export async function fetchDeptData(deptCode) {
-    const config = DEPARTEMENTS_CONFIG[deptCode];
-    if (!config) return [];
+export async function fetchSavoieData() {
+    let allAlerts = [];
 
     try {
-        if (config.format === 'turbolead-geojson') {
-            return await fetchTurboleadData(deptCode, config.sources);
-        } else if (config.format === 'savoie-api') {
-            return await fetchSavoieApiData(deptCode, config.apiUrlBase);
-        }
+        // Exécution simultanée des événements par catégorie et des Flash Infos
+        const [eventAlerts, flashAlerts] = await Promise.all([
+            fetchStandardEvents(),
+            fetchFlashInfos()
+        ]);
+
+        allAlerts = [...eventAlerts, ...flashAlerts];
     } catch (error) {
-        console.error(`Erreur globale de récupération pour le département ${deptCode}:`, error);
+        console.error("Erreur globale lors de la récupération des données Savoie:", error);
     }
-    return [];
+
+    return allAlerts;
 }
 
-// --- MOTEUR 1 : Isère (38) & Haute-Savoie (74) ---
-async function fetchTurboleadData(deptCode, sources) {
-    let combinedAlerts = [];
+// --- Récupération des événements classiques (2 étapes : Liste -> Détails) ---
+async function fetchStandardEvents() {
+    let alerts = [];
+    const categoryIds = Object.keys(SAVOIE_CATEGORIES);
 
-    // On lance toutes les requêtes du département en parallèle
-    const promises = sources.map(async (source) => {
+    const promises = categoryIds.map(async (catId) => {
         try {
-            // INTEGRATION CORS : Routage de l'URL cible à travers notre proxy Cloudflare
-            const proxiedUrl = `${PROXY_URL}?url=${encodeURIComponent(source.url)}`;
+            const list = await gmPostJson(SAVOIE_CONFIG.apiUrlEvents, { id: parseInt(catId) });
+            if (!Array.isArray(list)) return [];
 
-            const response = await fetch(proxiedUrl, {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json, text/javascript, */*; q=0.01',
-                    'X-Requested-With': 'XMLHttpRequest'
+            const detailPromises = list.map(async (item) => {
+                try {
+                    const detail = await gmPostJson(`${SAVOIE_CONFIG.apiUrlEvents}/allData`, { idAll: item.idtInfo });
+                    let d = Array.isArray(detail) ? detail[0] : (detail?.Detail_allData?.[0] || detail);
+                    
+                    if (!d) return null;
+
+                    const lat = parseFloat(d.Latitude || item.latitude || d.latitude);
+                    const lon = parseFloat(d.Longitude || item.longitude || d.longitude);
+                    const axe = d.Axe || item.axe || '';
+                    const commune = d.Commune || item.commune || '';
+                    const frType = d.FRType || item.libelleType || SAVOIE_CATEGORIES[catId];
+                    
+                    const titre = [frType, axe, commune].filter(Boolean).join(' — ') || `Alerte #${item.idtInfo}`;
+                    const commentaireClean = cleanText(d.Commentaire || item.commentaire || '');
+
+                    return {
+                        id: `73-evt-${item.idtInfo}`,
+                        isFlash: false,
+                        originalCategory: SAVOIE_CATEGORIES[catId],
+                        title: titre,
+                        description: commentaireClean,
+                        updated: d.Debut || d.Creation || "Récemment",
+                        startRaw: d.Debut || null,
+                        endRaw: d.Fin || null,
+                        lat: isNaN(lat) ? null : lat,
+                        lon: isNaN(lon) ? null : lon
+                    };
+                } catch (err) {
+                    return null;
                 }
             });
 
-            if (!response.ok) return [];
-            
-            // On récupère le texte brut d'abord pour ne pas faire planter le .json() direct
-            const rawText = await response.text();
-            let geojson;
-            
-            try {
-                // On tente de le parser en JSON, peu importe ce que prétend le Content-Type
-                geojson = JSON.parse(rawText);
-            } catch (jsonError) {
-                // Si le parse échoue, c'est que c'est VRAIMENT du HTML ou du texte invalide
-                const contentType = response.headers.get('content-type') || '';
-                if (contentType.includes('text/html')) {
-                    console.warn(`[Dept ${deptCode}] La source "${source.name}" a renvoyé du vrai HTML (redirection ou erreur serveur). Impossible de parser.`);
-                } else {
-                    console.warn(`[Dept ${deptCode}] Impossible de parser le JSON pour la source "${source.name}":`, jsonError.message);
-                }
-                return [];
-            }
-            
-            // À partir d'ici, geojson contient ton objet propre, la suite de ton code reste identique...
-            if (!geojson.features || !Array.isArray(geojson.features)) return [];
-
-            return geojson.features.map((feat, index) => {
-                const props = feat.properties || {};
-                const geometry = feat.geometry || {};
-                const coords = geometry.coordinates || [null, null];
-
-                let type = source.name;
-                if (props.nature) type = props.nature;
-                if (props.type_evenement) type = props.type_evenement;
-
-                return {
-                    id: `${deptCode}-${source.name}-${index}`,
-                    type: type,
-                    title: props.axe || props.route || props.titre || source.name,
-                    cross: cleanText(props.commentaire || props.description || props.texte || "Aucun détail."),
-                    updated: props.date_deb || props.date_maj || "Date non spécifiée",
-                    severity: props.bloquant === true || props.bloquant === "O" ? "danger" : "warning",
-                    lat: coords[1],
-                    lon: coords[0]
-                };
-            });
-        } catch (e) {
-            console.warn(`Impossible de charger la source Turbolead: ${source.name}`, e);
+            const resolvedDetails = await Promise.all(detailPromises);
+            return resolvedDetails.filter(Boolean);
+        } catch (err) {
+            console.warn(`Erreur sur la catégorie Savoie ${catId}:`, err);
             return [];
         }
     });
@@ -87,70 +73,50 @@ async function fetchTurboleadData(deptCode, sources) {
     return results.flat();
 }
 
-// --- MOTEUR 2 : Savoie (73) ---
-async function fetchSavoieApiData(deptCode, apiBaseUrl) {
-    let alerts = [];
-    const categoryIds = Object.keys(SAVOIE_CATEGORIES);
+// --- Récupération des Flash Infos (Alertes Urgentes) ---
+async function fetchFlashInfos() {
+    try {
+        const flashList = await gmPostJson(SAVOIE_CONFIG.apiUrlFlash, {});
+        if (!Array.isArray(flashList)) return [];
 
-    for (const catId of categoryIds) {
-        try {
-            const list = await gmPostJson(apiBaseUrl, { id: parseInt(catId) });
-            if (!Array.isArray(list)) continue;
-
-            for (const item of list) {
-                try {
-                    const detail = await gmPostJson(`${apiBaseUrl}/allData`, { idAll: item.idtInfo });
-                    
-                    let d = detail;
-                    if (detail && detail.Detail_allData && Array.isArray(detail.Detail_allData)) d = detail.Detail_allData[0];
-                    else if (Array.isArray(detail)) d = detail[0];
-
-                    if (!d) continue;
-
-                    const lat = parseFloat(d.Latitude || item.latitude || d.latitude);
-                    const lon = parseFloat(d.Longitude || item.longitude || d.longitude);
-
-                    const axe = d.Axe || item.axe || '';
-                    const commune = d.Commune || item.commune || '';
-                    const frType = d.FRType || item.libelleType || '';
-                    const titre = [frType, axe, commune].filter(Boolean).join(' — ') || `Alerte #${item.idtInfo}`;
-
-                    let chunks = [];
-                    const typeSoustype = [d.FRType, d.FRsousType].map(s => s ? s.trim() : '').filter(Boolean).join(' - ');
-                    if (typeSoustype) chunks.push(`Type : ${typeSoustype}`);
-                    if (d.FRTrafficConstrictionType && d.FRTrafficConstrictionType !== "null") chunks.push(`Impact : ${d.FRTrafficConstrictionType.trim()}`);
-                    if (d.Debut) chunks.push(`Début : ${new Date(d.Debut).toLocaleString('fr-FR')}`);
-                    if (d.Fin) chunks.push(`Fin : ${new Date(d.Fin).toLocaleString('fr-FR')}`);
-                    
-                    const commBrut = d.Commentaire || item.commentaire;
-                    if (commBrut && commBrut !== "null") chunks.push(`\nDétails :\n${cleanText(commBrut)}`);
-
-                    const catConfig = SAVOIE_CATEGORIES[catId];
-
-                    alerts.push({
-                        id: `73-${item.idtInfo}`,
-                        type: catConfig.name,
-                        title: titre,
-                        cross: chunks.join('\n').trim(),
-                        updated: d.Debut || "Récemment",
-                        severity: catConfig.severity,
-                        lat: isNaN(lat) ? null : lat,
-                        lon: isNaN(lon) ? null : lon
-                    });
-                } catch (err) {
-                    console.warn(`Erreur détails alerte Savoie #${item.idtInfo}`, err);
-                }
-            }
-        } catch (err) {
-            console.warn(`Erreur liste Savoie Catégorie ${catId}`, err);
-        }
+        return flashList.map((flash, index) => {
+            const lat = parseFloat(flash.latitude || flash.Latitude);
+            const lon = parseFloat(flash.longitude || flash.Longitude);
+            
+            return {
+                id: `73-flash-${flash.id || index}`,
+                isFlash: true,
+                originalCategory: "Flash Info",
+                title: cleanText(flash.titre || flash.Titre || "⚠️ ALERTE FLASH SÉCURITÉ"),
+                description: cleanText(flash.texte || flash.Texte || flash.commentaire || ""),
+                updated: flash.date_deb || flash.Creation || "En cours",
+                startRaw: flash.date_deb || null,
+                endRaw: flash.date_fin || null,
+                lat: isNaN(lat) ? null : lat,
+                lon: isNaN(lon) ? null : lon
+            };
+        });
+    } catch (err) {
+        console.warn("Erreur lors de la récupération des Flash Infos Savoie:", err);
+        return [];
     }
-    return alerts;
 }
 
-// --- UTILS : Nettoyage et requêtes POST ---
+// --- Outils d'infrastructure (Requêtes et Nettoyage) ---
+function gmPostJson(url, body) {
+    const proxiedUrl = `${PROXY_URL}?url=${encodeURIComponent(url)}`;
+    return fetch(proxiedUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    }).then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+    });
+}
+
 function cleanText(str) {
-    if (!str) return '';
+    if (!str || str === "null") return '';
     return String(str)
         .replace(/<br\s*\/?>/gi, '\n')
         .replace(/<\/?p>/gi, '\n')
@@ -164,18 +130,4 @@ function cleanText(str) {
         .replace(/ {2,}/g, ' ')
         .replace(/\n\s*\n/g, '\n')
         .trim();
-}
-
-function gmPostJson(url, body) {
-    // INTEGRATION CORS : Routage de la requête POST à travers notre proxy Cloudflare
-    const proxiedUrl = `${PROXY_URL}?url=${encodeURIComponent(url)}`;
-
-    return fetch(proxiedUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-    }).then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-    });
 }
