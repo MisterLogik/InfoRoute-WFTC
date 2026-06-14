@@ -1,39 +1,38 @@
-import { SAVOIE_CONFIG, SAVOIE_CATEGORIES, PROXY_URL } from './config-api.js';
+import { DEPARTEMENTS_CONFIG, SAVOIE_CATEGORIES, PROXY_URL } from './config-api.js';
 
-export async function fetchSavoieData() {
-    let allAlerts = [];
+export async function fetchDeptData(deptCode) {
+    const config = DEPARTEMENTS_CONFIG[deptCode];
+    if (!config) return [];
 
     try {
-        // Exécution simultanée des événements par catégorie et des Flash Infos
-        const [eventAlerts, flashAlerts] = await Promise.all([
-            fetchStandardEvents(),
-            fetchFlashInfos()
-        ]);
-
-        allAlerts = [...eventAlerts, ...flashAlerts];
+        if (config.format === 'savoie-api') {
+            return await fetchSavoieApiData(deptCode, config.apiUrlBase);
+        }
     } catch (error) {
-        console.error("Erreur globale lors de la récupération des données Savoie:", error);
+        console.error(`Erreur globale de récupération pour le département ${deptCode}:`, error);
     }
-
-    return allAlerts;
+    return [];
 }
 
-// --- Récupération des événements classiques (2 étapes : Liste -> Détails) ---
-async function fetchStandardEvents() {
+// --- MOTEUR UNIQUE : API Savoie (73) ---
+async function fetchSavoieApiData(deptCode, apiBaseUrl) {
     let alerts = [];
     const categoryIds = Object.keys(SAVOIE_CATEGORIES);
 
-    const promises = categoryIds.map(async (catId) => {
+    for (const catId of categoryIds) {
         try {
-            const list = await gmPostJson(SAVOIE_CONFIG.apiUrlEvents, { id: parseInt(catId) });
-            if (!Array.isArray(list)) return [];
+            const list = await gmPostJson(apiBaseUrl, { id: parseInt(catId) });
+            if (!Array.isArray(list)) continue;
 
-            const detailPromises = list.map(async (item) => {
+            for (const item of list) {
                 try {
-                    const detail = await gmPostJson(`${SAVOIE_CONFIG.apiUrlEvents}/allData`, { idAll: item.idtInfo });
-                    let d = Array.isArray(detail) ? detail[0] : (detail?.Detail_allData?.[0] || detail);
+                    const detail = await gmPostJson(`${apiBaseUrl}/allData`, { idAll: item.idtInfo });
+                    
+                    let d = detail;
+                    if (detail && detail.Detail_allData && Array.isArray(detail.Detail_allData)) d = detail.Detail_allData[0];
+                    else if (Array.isArray(detail)) d = detail[0];
 
-                    if (!d) return null;
+                    if (!d) continue;
 
                     const lat = parseFloat(d.Latitude || item.latitude || d.latitude);
                     const lon = parseFloat(d.Longitude || item.longitude || d.longitude);
@@ -47,88 +46,38 @@ async function fetchStandardEvents() {
                     const typeSoustype = [d.FRType, d.FRsousType].map(s => s ? s.trim() : '').filter(Boolean).join(' - ');
                     if (typeSoustype) chunks.push(`Type : ${typeSoustype}`);
                     if (d.FRTrafficConstrictionType && d.FRTrafficConstrictionType !== "null") chunks.push(`Impact : ${d.FRTrafficConstrictionType.trim()}`);
-                    if (d.Debut) chunks.push(`Début : ${d.Debut}`);
-                    if (d.Fin) chunks.push(`Fin : ${d.Fin}`);
+                    if (d.Debut) chunks.push(`Début : ${new Date(d.Debut).toLocaleString('fr-FR')}`);
+                    if (d.Fin) chunks.push(`Fin : ${new Date(d.Fin).toLocaleString('fr-FR')}`);
                     
                     const commBrut = d.Commentaire || item.commentaire;
                     if (commBrut && commBrut !== "null") chunks.push(`\nDétails :\n${cleanText(commBrut)}`);
 
                     const catConfig = SAVOIE_CATEGORIES[catId];
 
-                    return {
+                    alerts.push({
                         id: `73-${item.idtInfo}`,
                         type: catConfig.name,
                         title: titre,
                         cross: chunks.join('\n').trim(),
                         updated: d.Debut || "Récemment",
-                        startRaw: d.Debut || null,
-                        endRaw: d.Fin || null,
                         severity: catConfig.severity,
                         lat: isNaN(lat) ? null : lat,
                         lon: isNaN(lon) ? null : lon
-                    };
+                    });
                 } catch (err) {
                     console.warn(`Erreur détails alerte Savoie #${item.idtInfo}`, err);
-                    return null;
                 }
-            });
-
-            const resDetails = await Promise.all(detailPromises);
-            return resDetails.filter(Boolean);
+            }
         } catch (err) {
             console.warn(`Erreur liste Savoie Catégorie ${catId}`, err);
-            return [];
         }
-    });
-
-    const results = await Promise.all(promises);
-    return results.flat();
-}
-
-// --- Récupération des Flash Infos (1 étape) ---
-async function fetchFlashInfos() {
-    try {
-        const flashList = await gmPostJson(SAVOIE_CONFIG.apiUrlFlash, {});
-        if (!Array.isArray(flashList)) return [];
-
-        return flashList.map(flash => {
-            const lat = parseFloat(flash.latitude || flash.Latitude);
-            const lon = parseFloat(flash.longitude || flash.Longitude);
-
-            return {
-                id: `73-flash-${flash.idtFlashsInfo || Math.random()}`,
-                type: "Flash Info",
-                title: cleanText(flash.titre || flash.Titre || "⚠️ ALERTE FLASH SÉCURITÉ"),
-                description: cleanText(flash.texte || flash.Texte || flash.commentaire || ""),
-                updated: flash.date_deb || flash.Creation || "En cours",
-                startRaw: flash.date_deb || null,
-                endRaw: flash.date_fin || null,
-                severity: "danger",
-                lat: isNaN(lat) ? null : lat,
-                lon: isNaN(lon) ? null : lon
-            };
-        });
-    } catch (err) {
-        console.warn("Erreur lors de la récupération des Flash Infos Savoie:", err);
-        return [];
     }
+    return alerts;
 }
 
-// --- Outils d'infrastructure (Requêtes et Nettoyage) ---
-function gmPostJson(url, body) {
-    const proxiedUrl = `${PROXY_URL}?url=${encodeURIComponent(url)}`;
-    return fetch(proxiedUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-    }).then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-    });
-}
-
+// --- UTILS : Nettoyage et requêtes POST ---
 function cleanText(str) {
-    if (!str || str === "null") return '';
+    if (!str) return '';
     return String(str)
         .replace(/<br\s*\/?>/gi, '\n')
         .replace(/<\/?p>/gi, '\n')
@@ -142,4 +91,16 @@ function cleanText(str) {
         .replace(/ {2,}/g, ' ')
         .replace(/\n\s*\n/g, '\n')
         .trim();
+}
+
+function gmPostJson(url, body) {
+    const proxiedUrl = `${PROXY_URL}?url=${encodeURIComponent(url)}`;
+    return fetch(proxiedUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    }).then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+    });
 }
