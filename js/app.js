@@ -1,7 +1,7 @@
-import { TAGS_KEYWORDS, BLACKLIST_KEYWORDS } from './config-api.js';
-import { fetchSavoieData } from './fetcher.js';
+import { DEPARTEMENTS_CONFIG, BLACKLIST_KEYWORDS } from './config-api.js';
+import { fetchDeptData } from './fetcher.js';
 
-// --- État global de l'application ---
+// --- État de l'application ---
 window.ALL_ALERTS = []; 
 let sortAscending = false; 
 let currentView = 'grid'; 
@@ -11,19 +11,34 @@ const btnSyncAll = document.getElementById('btn-sync-all');
 const btnResetFilters = document.getElementById('btn-reset-filters');
 const btnToggleSort = document.getElementById('btn-toggle-sort');
 
+// Boutons temporels
 const btnQuickToday = document.getElementById('btn-quick-today');
+const btnQuickWeek = document.getElementById('btn-quick-week');
+const btnQuickNextWeek = document.getElementById('btn-quick-next-week');
+const btnQuickMonth = document.getElementById('btn-quick-month');
+const btnQuickNextMonth = document.getElementById('btn-quick-next-month'); 
+
 const btnViewGrid = document.getElementById('btn-view-grid');
 const btnViewTable = document.getElementById('btn-view-table');
 
 const syncStatus = document.getElementById('sync-status');
+const filterDept = document.getElementById('filter-dept');
 const filterType = document.getElementById('filter-type');
 const filterSeverity = document.getElementById('filter-severity');
 const filterShowBlacklist = document.getElementById('filter-show-blacklist'); 
+
+const filterCurrentOnly = document.getElementById('filter-current-only');
+const filterDateStart = document.getElementById('filter-date-start');
+const filterDateStartLogic = document.getElementById('filter-date-start-logic');
+const filterDateEnd = document.getElementById('filter-date-end');
+const filterDateEndLogic = document.getElementById('filter-date-end-logic');
+
 const searchBar = document.getElementById('search-bar');
 const alertsGrid = document.getElementById('alerts-grid');
 const loader = document.getElementById('loader');
 const statTotal = document.getElementById('stat-total');
-const statsBySeverity = document.getElementById('stats-by-severity');
+const statsBySeverity = document.getElementById('stats-by-severity'); 
+const statsByDept = document.getElementById('stats-by-dept');
 
 // --- Initialisation ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -33,111 +48,183 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initFilters() {
-    // Remplissage dynamique du sélecteur de nature basé sur nos tags globaux
-    if (filterType) {
-        filterType.innerHTML = '<option value="all">Tous les types d\'alerte</option>';
-        filterType.innerHTML += '<option value="Flash Info">⭐ Alertes FLASH</option>';
-        for (const tag of Object.keys(TAGS_KEYWORDS)) {
-            const option = document.createElement('option');
-            option.value = tag;
-            option.textContent = tag;
-            filterType.appendChild(option);
-        }
+    for (const [code, info] of Object.entries(DEPARTEMENTS_CONFIG)) {
+        const option = document.createElement('option');
+        option.value = code;
+        option.textContent = `${code} - ${info.name}`;
+        filterDept.appendChild(option);
     }
 }
 
 function setupEventListeners() {
-    if (btnSyncAll) btnSyncAll.addEventListener('click', synchronizeData);
-    if (btnResetFilters) btnResetFilters.addEventListener('click', resetAllFilters);
+    btnSyncAll.addEventListener('click', synchronizeAll);
+    btnResetFilters.addEventListener('click', resetAllFilters);
+    btnToggleSort.addEventListener('click', toggleSortOrder);
     
-    if (btnToggleSort) {
-        btnToggleSort.addEventListener('click', () => {
-            sortAscending = !sortAscending;
-            btnToggleSort.innerHTML = sortAscending ? '⬇️ Tri : Date (Anciens d\'abord)' : '⬇️ Tri : Date (Récents d\'abord)';
-            renderAlerts();
-        });
-    }
-    
-    if (btnQuickToday) {
-        btnQuickToday.addEventListener('click', () => { 
-            resetAllFilters(); 
-            renderAlerts(); 
-        });
-    }
-    
-    if (btnViewGrid) btnViewGrid.addEventListener('click', () => { currentView = 'grid'; renderAlerts(); });
-    if (btnViewTable) btnViewTable.addEventListener('click', () => { currentView = 'table'; renderAlerts(); });
+    btnQuickToday.addEventListener('click', setFilterToday);
+    btnQuickWeek.addEventListener('click', setFilterWeek);
+    btnQuickNextWeek.addEventListener('click', setFilterNextWeek);
+    btnQuickMonth.addEventListener('click', setFilterMonth);
+    btnQuickNextMonth.addEventListener('click', setFilterNextMonth); 
 
-    if (searchBar) searchBar.addEventListener('input', renderAlerts);
-    if (filterType) filterType.addEventListener('change', renderAlerts);
-    if (filterSeverity) filterSeverity.addEventListener('change', renderAlerts);
-    if (filterShowBlacklist) filterShowBlacklist.addEventListener('change', renderAlerts); 
+    btnViewGrid.addEventListener('click', () => { switchView('grid'); });
+    btnViewTable.addEventListener('click', () => { switchView('table'); });
+
+    searchBar.addEventListener('input', renderAlerts);
+    filterDept.addEventListener('change', renderAlerts);
+    filterType.addEventListener('change', renderAlerts);
+    filterSeverity.addEventListener('change', renderAlerts);
+    filterShowBlacklist.addEventListener('change', renderAlerts); 
+    
+    filterCurrentOnly.addEventListener('change', renderAlerts);
+    filterDateStart.addEventListener('change', renderAlerts);
+    filterDateStartLogic.addEventListener('change', renderAlerts);
+    filterDateEnd.addEventListener('change', renderAlerts);
+    filterDateEndLogic.addEventListener('change', renderAlerts);
 }
 
-function resetAllFilters() {
-    if (searchBar) searchBar.value = '';
-    if (filterType) filterType.value = 'all';
-    if (filterSeverity) filterSeverity.value = 'all';
-    if (filterShowBlacklist) filterShowBlacklist.checked = false; 
+function switchView(viewType) {
+    currentView = viewType;
+    if (viewType === 'grid') {
+        btnViewGrid.classList.add('active');
+        btnViewTable.classList.remove('active');
+    } else {
+        btnViewGrid.classList.remove('active');
+        btnViewTable.classList.add('active');
+    }
     renderAlerts();
 }
 
-// --- Synchronisation ---
-async function synchronizeData() {
-    if (loader) loader.classList.remove('hidden');
-    if (btnSyncAll) btnSyncAll.disabled = true;
+function toggleSortOrder() {
+    sortAscending = !sortAscending;
+    btnToggleSort.innerHTML = sortAscending ? '⬇️ Tri : Date de début (Croissant)' : '⬇️ Tri : Date de début (Décroissant)';
+    renderAlerts();
+}
 
-    const rawAlerts = await fetchSavoieData();
+function resetAllFilters() {
+    searchBar.value = '';
+    filterDept.value = 'all';
+    filterType.value = 'all';
+    filterSeverity.value = 'all';
+    filterShowBlacklist.checked = false; 
+    filterCurrentOnly.checked = false;
+    filterDateStart.value = '';
+    filterDateStartLogic.value = 'after_or_on';
+    filterDateEnd.value = '';
+    filterDateEndLogic.value = 'before_or_on';
+    renderAlerts();
+}
+
+function getYYYYMMDD(date) {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+}
+
+function setFilterToday() {
+    resetAllFilters();
+    filterCurrentOnly.checked = true;
+    renderAlerts();
+}
+
+function setFilterWeek() {
+    resetAllFilters();
+    const start = new Date();
+    const end = new Date();
+    end.setDate(start.getDate() + 7); 
+
+    filterDateStartLogic.value = 'after_or_on';
+    filterDateStart.value = getYYYYMMDD(start);
     
-    // Enrichissement analytique (Multi-tags & Niveaux de sévérité)
-    window.ALL_ALERTS = rawAlerts.map(alert => {
-        const textTarget = `${alert.title} ${alert.description}`.toLowerCase();
-        
-        // 1. Système d'analyse Multi-Tags basé sur les mots-clés textuels
-        let detectedTags = [];
-        for (const [tag, keywords] of Object.entries(TAGS_KEYWORDS)) {
-            if (keywords.some(kw => textTarget.includes(kw))) {
-                detectedTags.push(tag);
-            }
-        }
-        // Fallback sur la catégorie d'origine de l'API Savoie si aucun mot-clé spécifique n'a matché
-        if (detectedTags.length === 0 && alert.originalCategory) {
-            detectedTags.push(alert.originalCategory);
-        }
+    filterDateEndLogic.value = 'before_or_on';
+    filterDateEnd.value = getYYYYMMDD(end);
+    
+    renderAlerts();
+}
 
-        // 2. Évaluation de la sévérité visuelle
-        let severity = 'info';
-        if (BLACKLIST_KEYWORDS.some(kw => textTarget.includes(kw.toLowerCase()))) {
-            severity = 'blacklist';
-        } else if (alert.isFlash) {
-            severity = 'danger'; // Priorité absolue aux flux Flash Info
-        } else if (detectedTags.includes('Fermeture') || detectedTags.includes('Accident')) {
-            severity = 'danger';
-        } else if (detectedTags.includes('Travaux') || detectedTags.includes('Bouchon') || detectedTags.includes('Obstacle')) {
-            severity = 'warning';
-        }
+function setFilterNextWeek() {
+    resetAllFilters();
+    const start = new Date();
+    start.setDate(start.getDate() + 7); 
+    
+    const end = new Date();
+    end.setDate(start.getDate() + 7); 
 
-        return {
-            ...alert,
-            computedTags: detectedTags,
-            computedSeverity: severity
-        };
+    filterDateStartLogic.value = 'after_or_on';
+    filterDateStart.value = getYYYYMMDD(start);
+    
+    filterDateEndLogic.value = 'before_or_on';
+    filterDateEnd.value = getYYYYMMDD(end);
+    
+    renderAlerts();
+}
+
+function setFilterMonth() {
+    resetAllFilters();
+    const start = new Date();
+    const end = new Date(start.getFullYear(), start.getMonth() + 1, 0); 
+
+    filterDateStartLogic.value = 'after_or_on';
+    filterDateStart.value = getYYYYMMDD(start);
+    
+    filterDateEndLogic.value = 'before_or_on';
+    filterDateEnd.value = getYYYYMMDD(end);
+    
+    renderAlerts();
+}
+
+function setFilterNextMonth() {
+    resetAllFilters();
+    const now = new Date();
+    const firstDayNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const lastDayNextMonth = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+
+    filterDateStartLogic.value = 'after_or_on';
+    filterDateStart.value = getYYYYMMDD(firstDayNextMonth);
+    
+    filterDateEndLogic.value = 'before_or_on';
+    filterDateEnd.value = getYYYYMMDD(lastDayNextMonth);
+    
+    renderAlerts();
+}
+
+// --- GESTION DES FLUX ---
+async function synchronizeAll() {
+    loader.classList.remove('hidden');
+    btnSyncAll.disabled = true;
+    window.ALL_ALERTS = []; 
+
+    const fetchPromises = Object.keys(DEPARTEMENTS_CONFIG).map(async (code) => {
+        const deptAlerts = await fetchDeptData(code);
+        return deptAlerts.map(alert => {
+            const detectionTime = new Date().toISOString();
+            return { 
+                ...alert, 
+                deptCode: code,
+                discoveredAt: alert.discoveredAt || detectionTime 
+            };
+        });
     });
 
-    localStorage.setItem('savoie_alerts_data', JSON.stringify(window.ALL_ALERTS));
-    const nowTime = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-    localStorage.setItem('savoie_last_sync_time', nowTime);
+    const results = await Promise.all(fetchPromises);
+    window.ALL_ALERTS = results.flat(); 
 
-    if (loader) loader.classList.add('hidden');
-    if (btnSyncAll) btnSyncAll.disabled = false;
+    localStorage.setItem('waze_tc_alerts', JSON.stringify(window.ALL_ALERTS));
+    const now = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    localStorage.setItem('waze_tc_last_sync', now);
+
+    loader.classList.add('hidden');
+    btnSyncAll.disabled = false;
     
-    updateSyncStatus(nowTime);
+    updateSyncStatus(now);
     renderAlerts();
 }
 
 function loadFromLocalStorage() {
-    const localData = localStorage.getItem('savoie_alerts_data');
-    const localTime = localStorage.getItem('savoie_last_sync_time');
+    const localData = localStorage.getItem('waze_tc_alerts');
+    const localTime = localStorage.getItem('waze_tc_last_sync');
+    
     if (localData) {
         window.ALL_ALERTS = JSON.parse(localData);
         updateSyncStatus(localTime);
@@ -146,53 +233,148 @@ function loadFromLocalStorage() {
 }
 
 function updateSyncStatus(time) {
-    if (syncStatus) syncStatus.textContent = `Dernière synchro : ${time}`;
+    syncStatus.textContent = `Dernière synchro : ${time}`;
 }
 
-// --- Moteur de rendu filtré ---
 function renderAlerts() {
-    const searchQuery = searchBar ? searchBar.value.toLowerCase().trim() : '';
-    const selectedType = filterType ? filterType.value : 'all';
-    const selectedSeverity = filterSeverity ? filterSeverity.value : 'all';
-    const showBlacklist = filterShowBlacklist ? filterShowBlacklist.checked : false;
+    const searchQuery = searchBar.value.toLowerCase().trim();
+    const selectedDept = filterDept.value;
+    const selectedType = filterType.value;
+    const selectedSeverity = filterSeverity.value;
+    const isShowBlacklistChecked = filterShowBlacklist.checked;
+
+    const currentOnly = filterCurrentOnly.checked;
+    const startTargetStr = filterDateStart.value;
+    const startLogic = filterDateStartLogic.value;
+    const endTargetStr = filterDateEnd.value;
+    const endLogic = filterDateEndLogic.value;
+
+    const now = new Date();
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(now.getFullYear() - 1); 
 
     let filtered = window.ALL_ALERTS.filter(alert => {
-        // Gestion de la Liste Noire
-        if (alert.computedSeverity === 'blacklist' && !showBlacklist && selectedSeverity !== 'blacklist') {
+        const titleLower = alert.title.toLowerCase();
+        const crossLower = alert.cross.toLowerCase();
+        const alertStartDate = parseAlertDate(alert.updated);
+
+        const isAnyDateFilterActive = currentOnly || startTargetStr || endTargetStr;
+        if (isAnyDateFilterActive && !alertStartDate) {
             return false;
         }
 
-        // Match de la recherche textuelle globale
-        const matchSearch = alert.title.toLowerCase().includes(searchQuery) || alert.description.toLowerCase().includes(searchQuery);
+        let calculatedType = alert.type;
+        if (alert.type.toLowerCase().includes('travaux') || alert.type.toLowerCase().includes('chantier')) {
+            const hasAlternatKeywords = crossLower.includes('alternat') || crossLower.includes('restriction') || crossLower.includes('voie impactée') || crossLower.includes('circulation alternée');
+            calculatedType = hasAlternatKeywords ? 'Alternat' : 'Fermeture';
+        } else if (titleLower.includes('ferm') || crossLower.includes('route fermée') || crossLower.includes('fermeture')) {
+            calculatedType = 'Fermeture';
+        }
+        alert.computedCategory = calculatedType;
+
+        let severity = 'warning'; 
+
+        if (alertStartDate && alertStartDate < oneYearAgo) {
+            severity = 'blacklist'; 
+        } 
+        else if (BLACKLIST_KEYWORDS.some(kw => titleLower.includes(kw.toLowerCase()) || crossLower.includes(kw.toLowerCase()))) {
+            severity = 'blacklist'; 
+        } 
+        else if (alert.deptCode === '73') {
+            const impactStr = alert.impact ? alert.impact.toLowerCase() : '';
+            const hasCoupeeInImpact = impactStr.includes('coupé') || impactStr.includes('coupee') || impactStr.includes('coupée') || impactStr.includes('coupés') || impactStr.includes('coupées');
+            const closureKeywords = ['coupé', 'coupee', 'coupée', 'coupées', 'coupés', 'fermeture', 'barré', 'barrée', 'barrés', 'barrées', 'fermé', 'fermée', 'fermés', 'fermées'];
+            const hasClosureInDetails = closureKeywords.some(kw => crossLower.includes(kw) || titleLower.includes(kw));
+
+            if (hasCoupeeInImpact) {
+                severity = 'danger';
+            } else {
+                severity = hasClosureInDetails ? 'warning' : 'info';
+            }
+        } 
+        else if (alert.deptCode === '38') {
+            const hasRouteBarreeInTitle = titleLower.includes('route barrée') || titleLower.includes('route barree');
+            const hasRouteBarreeInCross = crossLower.includes('route barrée') || crossLower.includes('route barree');
+            const defaultNoDesc = !alert.cross || alert.cross === "Aucun détail." || alert.cross.trim() === "";
+
+            if (hasRouteBarreeInCross && !defaultNoDesc) {
+                severity = 'danger';
+            } else if (hasRouteBarreeInTitle || (hasRouteBarreeInCross && defaultNoDesc)) {
+                severity = 'warning';
+            } else {
+                severity = alert.originalSeverity || 'warning';
+            }
+        } 
+        else {
+            const closureKeywords = ['coupé', 'coupee', 'coupée', 'fermeture', 'barré', 'barrée', 'fermé', 'fermée'];
+            severity = closureKeywords.some(kw => crossLower.includes(kw) || titleLower.includes(kw)) ? 'danger' : (alert.originalSeverity || 'warning');
+        }
+
+        alert.computedSeverity = severity;
+
+        if (alert.computedSeverity === 'blacklist' && !isShowBlacklistChecked && selectedSeverity !== 'blacklist') {
+            return false; 
+        }
+
+        const matchSearch = titleLower.includes(searchQuery) || crossLower.includes(searchQuery);
+        const matchDept = selectedDept === 'all' || alert.deptCode === selectedDept;
         
-        // Match du filtrage par Multi-Tags
         let matchType = false;
         if (selectedType === 'all') {
             matchType = true;
-        } else if (selectedType === 'Flash Info') {
-            matchType = alert.isFlash;
+        } else if (selectedType === 'Alternat') {
+            matchType = alert.computedCategory === 'Alternat';
+        } else if (selectedType === 'Fermeture') {
+            matchType = alert.computedCategory === 'Fermeture' || alert.type.toLowerCase().includes('ferm');
         } else {
-            matchType = alert.computedTags.includes(selectedType);
+            matchType = alert.type.toLowerCase().includes(selectedType.toLowerCase());
         }
 
-        // Match du filtrage par Gravité visuelle
         const matchSeverity = selectedSeverity === 'all' || alert.computedSeverity === selectedSeverity;
 
-        return matchSearch && matchType && matchSeverity;
+        if (!matchSearch || !matchDept || !matchType || !matchSeverity) return false;
+
+        if (currentOnly && alertStartDate) {
+            if (alertStartDate > now) return false;
+            const actualEndDate = extractEndDate(alert.cross);
+            if (actualEndDate && actualEndDate < now) return false;
+        }
+
+        if (startTargetStr && alertStartDate) {
+            const target = new Date(startTargetStr);
+            target.setHours(0, 0, 0, 0);
+            const compDate = new Date(alertStartDate);
+            compDate.setHours(0, 0, 0, 0);
+
+            if (startLogic === 'before_or_on' && compDate > target) return false;
+            if (startLogic === 'after_or_on' && compDate < target) return false;
+        }
+
+        if (endTargetStr && alertStartDate) {
+            const actualEndDate = extractEndDate(alert.cross) || alertStartDate; 
+
+            const target = new Date(endTargetStr);
+            target.setHours(23, 59, 59, 999);
+            const compDate = new Date(actualEndDate);
+            compDate.setHours(0, 0, 0, 0);
+
+            if (endLogic === 'before_or_on' && compDate > target) return false;
+            if (endLogic === 'after_or_on' && compDate < target) return false;
+        }
+
+        return true;
     });
 
-    // Tri temporel dynamique
     filtered.sort((a, b) => {
-        const dateA = a.startRaw ? new Date(a.startRaw) : new Date(0);
-        const dateB = b.startRaw ? new Date(b.startRaw) : new Date(0);
+        const dateA = parseAlertDate(a.updated) || (a.discoveredAt ? new Date(a.discoveredAt) : new Date(0));
+        const dateB = parseAlertDate(b.updated) || (b.discoveredAt ? new Date(b.discoveredAt) : new Date(0));
         return sortAscending ? dateA - dateB : dateB - dateA;
     });
 
-    if (!alertsGrid) return;
     alertsGrid.innerHTML = '';
 
     if (filtered.length === 0) {
-        alertsGrid.innerHTML = `<div class="empty-state">Aucun événement ne correspond à vos critères en Savoie.</div>`;
+        alertsGrid.innerHTML = `<div class="empty-state">Aucun événement ne correspond aux critères sélectionnés.</div>`;
         updateStats(0, filtered);
         return;
     }
@@ -206,90 +388,125 @@ function renderAlerts() {
     updateStats(filtered.length, filtered);
 }
 
-// --- Système intelligent d'extraction et formatage des dates ---
-function extractAndFormatDates(alert) {
-    let debut = alert.startRaw ? formatDateString(alert.startRaw) : null;
-    let fin = alert.endRaw ? formatDateString(alert.endRaw) : null;
-
-    // Analyse Regex de secours si la date de début est vide dans l'API
-    if (!debut && alert.description) {
-        const matchStart = alert.description.match(/(?:Début|Du)\s*[:\s]*(\d{2}\/\d{2}\/\d{4}(?:\s*\d{2}:\d{2})?)/i);
-        if (matchStart) debut = matchStart[1];
-    }
-
-    // Analyse Regex de secours si la date de fin est vide dans l'API
-    if (!fin && alert.description) {
-        const matchEnd = alert.description.match(/(?:Fin|jusqu'au|au)\s*[:\s]*(\d{2}\/\d{2}\/\d{4}(?:\s*\d{2}:\d{2})?)/i);
-        if (matchEnd) fin = matchEnd[1];
-    }
-
-    return { debut, fin };
-}
-
-function formatDateString(dateStr) {
-    if (!dateStr || dateStr === "Récemment" || dateStr === "En cours") return null;
-    const parsed = Date.parse(dateStr);
-    if (!isNaN(parsed)) {
-        return new Date(parsed).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    }
-    return dateStr;
-}
-
-// --- Rendu : Vue en Grille (Structure demandée) ---
+// --- Rendu : Vue en Grille Structurée sans lignes de séparation ---
 function renderGridView(alerts) {
     alertsGrid.className = "alerts-grid";
     alerts.forEach(alert => {
         const card = document.createElement('div');
-        card.className = `card ${alert.computedSeverity} ${alert.isFlash ? 'flash-card' : ''}`;
+        card.className = `card ${alert.computedSeverity}`;
         
-        // Tags du haut joints par un espace (alignés à gauche par CSS/HTML)
-        const tagsHtml = alert.computedTags.map(t => `<span class="badge-tag">${t}</span>`).join(' ');
+        const isBl = alert.computedSeverity === 'blacklist';
+        const displayType = isBl ? '🏳️ HORS DÉLAI / BLACKLIST' : alert.type;
+
+        // 1. Extraction propre des métadonnées analytiques
+        let typeInfo = alert.computedCategory || alert.type;
         
-        // Extraction des métadonnées temporelles brutes ou textuelles
-        const dates = extractAndFormatDates(alert);
-        
-        // Préparation des blocs conditionnels (si non disponibles, ils restent vides)
-        const impactHtml = alert.impact ? `<div class="card-impact" style="font-size: 0.9rem; color: #ffca28; margin-top: 5px;"><strong>Impact :</strong> ${alert.impact}</div>` : '';
-        const debutHtml = dates.debut ? `<div><strong>Début :</strong> ${dates.debut}</div>` : '';
-        const finHtml = dates.fin ? `<div><strong>Fin :</strong> ${dates.fin}</div>` : '';
-        
+        let impactInfo = alert.impact || "";
+        if (!impactInfo && alert.cross) {
+            const match = alert.cross.match(/Impact\s*:\s*([^\n]+)/i);
+            if (match) impactInfo = match[1].trim();
+        }
+        if (!impactInfo) impactInfo = "Non spécifié";
+
+        // Nettoyage de l'emplacement basé sur le titre de l'alerte
+        let emplacementInfo = "";
+        if (alert.title.includes(' — ')) {
+            const parts = alert.title.split(' — ');
+            emplacementInfo = parts.slice(1).join(' — ');
+        } else if (alert.title.includes(' - ')) {
+            const parts = alert.title.split(' - ');
+            emplacementInfo = parts.slice(1).join(' - ');
+        } else {
+            emplacementInfo = alert.title;
+        }
+
+        // Configuration intelligente des dates
+        let dateDebut = "Non spécifiée";
+        if (alert.updated && alert.updated !== "Récemment" && alert.updated !== "Date non spécifiée") {
+            dateDebut = formatDisplayDate(alert.updated);
+        }
+        if (alert.cross) {
+            const matchDeb = alert.cross.match(/Début\s*:\s*([^\n]+)/i);
+            if (matchDeb) dateDebut = matchDeb[1].trim();
+        }
+
+        let dateFin = "";
+        if (alert.cross) {
+            const matchFin = alert.cross.match(/Fin\s*:\s*([^\n]+)/i);
+            if (matchFin) dateFin = matchFin[1].trim();
+        }
+        if (!dateFin || dateFin === "") {
+            const endDateObj = extractEndDate(alert.cross);
+            if (endDateObj) {
+                dateFin = endDateObj.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            }
+        }
+
+        // Isolation textuelle du détail épuré
+        let detailInfo = alert.cross || "Aucun détail complémentaire.";
+        if (detailInfo.includes("Détails :")) {
+            const parts = detailInfo.split(/Détails\s*:\s*/i);
+            detailInfo = parts[1] || parts[0];
+        } else {
+            detailInfo = detailInfo.split('\n').filter(line => {
+                const l = line.toLowerCase().trim();
+                return !l.startsWith('type :') && !l.startsWith('impact :') && !l.startsWith('début :') && !l.startsWith('fin :');
+            }).join('\n').trim();
+        }
+        if (!detailInfo) detailInfo = "Aucun détail complémentaire.";
+
+        // Définition de la mise à jour de l'alerte
+        let majAlerte = "Non spécifiée";
+        if (alert.updated && alert.updated !== "Récemment" && alert.updated !== "Date non spécifiée" && !alert.cross?.includes("Début :")) {
+            majAlerte = formatDisplayDate(alert.updated);
+        }
+
         let wmeActionHtml = '';
         if (alert.lat && alert.lon) {
+            const wmeProd = `https://waze.com/fr/editor?env=row&lat=${alert.lat}&lon=${alert.lon}&zoomLevel=19`;
+            const wmeBeta = `https://beta.waze.com/fr/editor?env=row&lat=${alert.lat}&lon=${alert.lon}&zoomLevel=19`;
             wmeActionHtml = `
-                <div class="wme-actions" style="margin-top: 15px;">
-                    <a href="https://waze.com/fr/editor?env=row&lat=${alert.lat}&lon=${alert.lon}&zoomLevel=19" target="_blank" class="btn-wme wme-prod">WME Production</a>
-                    <a href="https://beta.waze.com/fr/editor?env=row&lat=${alert.lat}&lon=${alert.lon}&zoomLevel=19" target="_blank" class="btn-wme wme-beta">WME Beta</a>
+                <div class="wme-actions" style="margin-top: 15px; display: flex; gap: 10px;">
+                    <a href="${wmeProd}" target="_blank" class="btn-wme wme-prod">WME Production</a>
+                    <a href="${wmeBeta}" target="_blank" class="btn-wme wme-beta">WME Beta</a>
                 </div>
             `;
         }
 
-        // Rendu final respectant rigoureusement l'ordre demandé
+        // Rendu HTML strict : alignement total à gauche et séparation par espaces vides
         card.innerHTML = `
-            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <div class="tags-container" style="text-align: left;">${tagsHtml}</div>
-                <div class="dept-badge" style="text-align: right; font-weight: bold; font-size: 0.85rem; opacity: 0.8;">Dep. 73</div>
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; text-align: left;">
+                <span class="card-type" style="font-weight: bold; font-size: 0.95rem; opacity: 0.8;">${displayType}</span>
+                <span class="card-dept" style="font-weight: bold; font-size: 0.95rem; opacity: 0.8;">Dép. ${alert.deptCode}</span>
             </div>
             
-            <div class="card-title" style="font-weight: bold; font-size: 1.1rem; margin-bottom: 4px;">${alert.title}</div>
-            
-            ${impactHtml}
-            
-            <div class="card-spacer" style="height: 12px;"></div>
-            
-            <div class="card-body" style="white-space: pre-wrap; font-size: 0.95rem; line-height: 1.4; margin-bottom: 15px;">${alert.description || "Aucun détail complémentaire."}</div>
-            
-            <div class="card-footer-dates" style="font-size: 0.85rem; color: #bbb; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px; margin-bottom: 5px;">
-                ${debutHtml}
-                ${finHtml}
+            <div class="card-title" style="font-weight: bold; font-size: 1.1rem; margin-bottom: 20px; text-align: left; line-height: 1.35;">
+                ${alert.title}
             </div>
             
-            ${wmeActionHtml}
+            <div class="card-meta-block" style="font-size: 0.95rem; line-height: 1.55; margin-bottom: 20px; text-align: left;">
+                <div><strong>Type :</strong> ${typeInfo}</div>
+                <div><strong>Impact :</strong> ${impactInfo}</div>
+                <div><strong>Emplacement :</strong> ${emplacementInfo}</div>
+                <div><strong>Date Début :</strong> ${dateDebut}</div>
+                ${dateFin ? `<div><strong>Date Fin :</strong> ${dateFin}</div>` : ''}
+            </div>
+            
+            <div class="card-body" style="white-space: pre-wrap; font-size: 0.95rem; line-height: 1.45; margin-bottom: 20px; text-align: left; padding: 0; width: 100%;">
+                <strong>Détail :</strong> ${detailInfo}
+            </div>
+            
+            <div class="card-footer-structure" style="font-size: 0.85rem; color: #bbb; text-align: left; margin-top: auto; padding-top: 10px;">
+                <div class="date-maj" style="margin-bottom: 5px;">
+                    <strong>Mise à jour alerte :</strong> ${majAlerte}
+                </div>
+                ${wmeActionHtml}
+            </div>
         `;
         alertsGrid.appendChild(card);
     });
 }
 
-// --- Rendu : Vue en Tableau (Alternative épurée) ---
 function renderTableView(alerts) {
     alertsGrid.className = "";
     const container = document.createElement('div');
@@ -297,28 +514,37 @@ function renderTableView(alerts) {
 
     let rowsHtml = '';
     alerts.forEach(alert => {
+        let severityClass = 'row-warning';
+        if (alert.computedSeverity === 'danger') severityClass = 'row-danger';
+        else if (alert.computedSeverity === 'info') severityClass = 'row-info';
+        else if (alert.computedSeverity === 'blacklist') severityClass = 'row-blacklist';
+        
         let actionsHtml = '<i>Pas de géoloc</i>';
         if (alert.lat && alert.lon) {
+            const wmeProd = `https://waze.com/fr/editor?env=row&lat=${alert.lat}&lon=${alert.lon}&zoomLevel=19`;
+            const wmeBeta = `https://beta.waze.com/fr/editor?env=row&lat=${alert.lat}&lon=${alert.lon}&zoomLevel=19`;
             actionsHtml = `
                 <div class="table-actions">
-                    <a href="https://waze.com/fr/editor?env=row&lat=${alert.lat}&lon=${alert.lon}&zoomLevel=19" target="_blank" class="btn-wme-xs wme-prod">PRO</a>
-                    <a href="https://beta.waze.com/fr/editor?env=row&lat=${alert.lat}&lon=${alert.lon}&zoomLevel=19" target="_blank" class="btn-wme-xs wme-beta">BETA</a>
+                    <a href="${wmeProd}" target="_blank" class="btn-wme-xs wme-prod" title="Ouvrir Production">PRO</a>
+                    <a href="${wmeBeta}" target="_blank" class="btn-wme-xs wme-beta" title="Ouvrir Beta">BETA</a>
                 </div>
             `;
         }
 
-        const tagsString = alert.computedTags.join(', ');
+        const isBl = alert.computedSeverity === 'blacklist';
+        const displayCross = isBl ? '<span style="color:var(--text-muted); font-style:italic;">Masqué / Archivage de sécurité</span>' : alert.cross;
 
         rowsHtml += `
-            <tr class="row-${alert.computedSeverity}">
-                <td><strong>${alert.isFlash ? '⭐ FLASH' : tagsString}</strong></td>
+            <tr class="${severityClass}">
+                <td style="font-weight:bold; text-align:center;">${alert.deptCode}</td>
+                <td><strong>${isBl ? 'Obsolète/BL' : alert.computedCategory}</strong></td>
                 <td>
-                    <div style="font-weight:600;">${alert.title}</div>
-                    <div style="font-size:0.75rem; color:#aaa; max-width:500px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-                        ${alert.description || ''}
+                    <div style="font-weight:600; color:${isBl ? 'var(--text-muted)' : '#fff'};">${alert.title}</div>
+                    <div style="font-size:0.75rem; color:#aaa; max-height:40px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                        ${displayCross}
                     </div>
                 </td>
-                <td style="font-size:0.75rem; white-space:nowrap;">${alert.updated}</td>
+                <td style="font-size:0.75rem; white-space:nowrap;">${formatDisplayDate(alert.updated)}</td>
                 <td>${actionsHtml}</td>
             </tr>
         `;
@@ -328,9 +554,10 @@ function renderTableView(alerts) {
         <table class="tc-table">
             <thead>
                 <tr>
-                    <th style="width:160px;">Nature(s)</th>
+                    <th style="width:50px; text-align:center;">Dép</th>
+                    <th style="width:100px;">Nature</th>
                     <th>Événement & Description</th>
-                    <th style="width:140px;">Publication / Début</th>
+                    <th style="width:130px;">Début / Màj</th>
                     <th style="width:110px;">Éditeur WME</th>
                 </tr>
             </thead>
@@ -342,21 +569,66 @@ function renderTableView(alerts) {
     alertsGrid.appendChild(container);
 }
 
-// --- Statistiques et compteurs globaux ---
+function parseAlertDate(dateStr) {
+    if (!dateStr || dateStr.includes("non spécifiée")) return null;
+    const isoTimestamp = Date.parse(dateStr);
+    if (!isNaN(isoTimestamp)) return new Date(isoTimestamp);
+
+    const frMatch = dateStr.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+    if (frMatch) {
+        const day = parseInt(frMatch[1], 10);
+        const month = parseInt(frMatch[2], 10) - 1;
+        const year = parseInt(frMatch[3], 10);
+        const timeMatch = dateStr.match(/(\d{2}):(\d{2})/);
+        const hours = timeMatch ? parseInt(timeMatch[1], 10) : 0;
+        const minutes = timeMatch ? parseInt(timeMatch[2], 10) : 0;
+        return new Date(year, month, day, hours, minutes);
+    }
+    return null;
+}
+
+function extractEndDate(text) {
+    if (!text) return null;
+    const savoieMatch = text.match(/Fin\s*:\s*(\d{2})\/(\d{2})\/(\d{4})\s*(\d{2}):(\d{2})/);
+    if (savoieMatch) {
+        return new Date(parseInt(savoieMatch[3]), parseInt(savoieMatch[2]) - 1, parseInt(savoieMatch[1]), parseInt(savoieMatch[4]), parseInt(savoieMatch[5]));
+    }
+    const genericMatch = text.match(/(?:jusqu'au|fin|prévue le|au)\s*[:\s]*(\d{2})\/(\d{2})\/(\d{4})/i);
+    if (genericMatch) {
+        return new Date(parseInt(genericMatch[3]), parseInt(genericMatch[2]) - 1, parseInt(genericMatch[1]), 23, 59); 
+    }
+    return null;
+}
+
+function formatDisplayDate(dateStr) {
+    const parsed = parseAlertDate(dateStr);
+    if (!parsed) return dateStr;
+    return parsed.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
 function updateStats(totalCount, filteredAlerts) {
-    if (statTotal) statTotal.textContent = totalCount;
-    let counts = { danger: 0, warning: 0, info: 0, blacklist: 0 };
+    statTotal.textContent = totalCount;
+    let countsSeverity = { danger: 0, warning: 0, info: 0, blacklist: 0 };
+    const countsDept = {};
 
     filteredAlerts.forEach(a => {
-        if (counts[a.computedSeverity] !== undefined) counts[a.computedSeverity]++;
+        if (countsSeverity[a.computedSeverity] !== undefined) countsSeverity[a.computedSeverity]++;
+        countsDept[a.deptCode] = (countsDept[a.deptCode] || 0) + 1;
     });
 
-    if (statsBySeverity) {
-        statsBySeverity.innerHTML = `
-            <div class="severity-stat-badge" title="Bloquant / Urgent">🔴 <strong>${counts.danger}</strong></div>
-            <div class="severity-stat-badge" title="Perturbation">🟠 <strong>${counts.warning}</strong></div>
-            <div class="severity-stat-badge" title="Information">🔘 <strong>${counts.info}</strong></div>
-            <div class="severity-stat-badge" title="Masqué (Test)">⚪ <strong>${counts.blacklist}</strong></div>
-        `;
+    statsBySeverity.innerHTML = `
+        <div class="severity-stat-badge" title="Bloquant Impératif">🔴 <strong>${countsSeverity.danger}</strong></div>
+        <div class="severity-stat-badge" title="À vérifier / Partiel">🟠 <strong>${countsSeverity.warning}</strong></div>
+        <div class="severity-stat-badge" title="Informatif / Mineur">🔘 <strong>${countsSeverity.info}</strong></div>
+        <div class="severity-stat-badge" title="Liste Noire / Obsolète">⚪ <strong>${countsSeverity.blacklist}</strong></div>
+    `;
+
+    statsByDept.innerHTML = '';
+    const sortedDepts = Object.entries(countsDept).sort((a, b) => b[1] - a[1]);
+    for (const [dept, count] of sortedDepts) {
+        const tag = document.createElement('span');
+        tag.className = 'dept-tag-stat';
+        tag.innerHTML = `📍 <strong>${dept}</strong> : ${count}`;
+        statsByDept.appendChild(tag);
     }
 }
