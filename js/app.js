@@ -193,23 +193,56 @@ function setFilterNextMonth() {
 }
 
 // --- GESTION DES FLUX ---
+// --- GESTION DES FLUX SÉCURISÉE ---
 async function synchronizeAll() {
     loader.classList.remove('hidden');
     btnSyncAll.disabled = true;
-    window.ALL_ALERTS = []; 
+    
+    // Tableau temporaire pour accumuler uniquement les alertes valides
+    const validAlerts = [];
 
+    // On crée une promesse sécurisée par département
     const fetchPromises = Object.keys(DEPARTEMENTS_CONFIG).map(async (code) => {
-        const deptAlerts = await fetchDeptData(code);
-        return deptAlerts.map(alert => {
-            const detectionTime = new Date().toISOString();
-            return { 
-                ...alert, 
-                deptCode: code,
-                discoveredAt: alert.discoveredAt || detectionTime 
-            };
-        });
+        try {
+            const deptAlerts = await fetchDeptData(code);
+            
+            // Sécurité : On vérifie que la source renvoie bien un tableau de données
+            if (deptAlerts && Array.isArray(deptAlerts)) {
+                const detectionTime = new Date().toISOString();
+                
+                const processed = deptAlerts.map(alert => ({ 
+                    ...alert, 
+                    deptCode: code,
+                    discoveredAt: alert.discoveredAt || detectionTime 
+                }));
+                
+                // On ajoute les alertes réussies au tableau global
+                validAlerts.push(...processed);
+            } else {
+                console.warn(`[App] Le département ${code} a renvoyé un format invalide ou vide.`);
+            }
+        } catch (error) {
+            // Si un département plante (ex: le 74 renvoie du HTML), on l'isole ici
+            console.error(`[App] Échec de récupération pour le département ${code} (Serveur distant défaillant) :`, error);
+        }
     });
 
+    // On attend que TOUTES les requêtes soient traitées (qu'elles aient réussi ou échoué)
+    await Promise.all(fetchPromises);
+
+    // On injecte les données récoltées sans coupure du script
+    window.ALL_ALERTS = validAlerts; 
+
+    localStorage.setItem('waze_tc_alerts', JSON.stringify(window.ALL_ALERTS));
+    const now = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    localStorage.setItem('waze_tc_last_sync', now);
+
+    loader.classList.add('hidden');
+    btnSyncAll.disabled = false;
+    
+    updateSyncStatus(now);
+    renderAlerts(); // Relance l'affichage des départements opérationnels
+}
     const results = await Promise.all(fetchPromises);
     window.ALL_ALERTS = results.flat(); 
 
