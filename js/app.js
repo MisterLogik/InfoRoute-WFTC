@@ -1,5 +1,5 @@
-import { DEPARTEMENTS_CONFIG, BLACKLIST_KEYWORDS } from './config-api.js';
-import { fetchDeptData } from './fetcher.js';
+import { TAGS_KEYWORDS, BLACKLIST_KEYWORDS } from './config-api.js';
+import { fetchSavoieData } from './fetcher.js';
 
 // --- État de l'application ---
 window.ALL_ALERTS = []; 
