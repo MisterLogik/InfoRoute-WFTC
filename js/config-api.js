@@ -1,7 +1,20 @@
 // CONFIGURATION DU PROXY CORS CLOUDFLARE
 export const PROXY_URL = "https://inforoutefrance-proxy.xtremxlogik.workers.dev/";
 
-// Configuration unique pour la Savoie (73)
+// Configuration globale des départements (Requis par app.js)
+export const DEPARTEMENTS_CONFIG = {
+    "73": {
+        name: "Savoie",
+        apiUrlEvents: "https://savoie-route.fr/api/v1/evenements",
+        apiUrlFlash: "https://savoie-route.fr/api/v1/flashsInfo/flashsInfo"
+    },
+    "38": {
+        name: "Isère"
+        // Vous pourrez y ajouter les URLs d'API spécifiques à l'Isère si votre fetcher en a besoin
+    }
+};
+
+// Configuration unique pour la Savoie (73) - Conservée pour la rétrocompatibilité du fetcher
 export const SAVOIE_CONFIG = {
     name: "Savoie",
     code: "73",
