@@ -33,7 +33,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initFilters() {
-    // Remplissage dynamique du sélecteur de nature basé sur nos tags globaux
     if (filterType) {
         filterType.innerHTML = '<option value="all">Tous les types d\'alerte</option>';
         filterType.innerHTML += '<option value="Flash Info">⭐ Alertes FLASH</option>';
@@ -89,28 +88,24 @@ async function synchronizeData() {
 
     const rawAlerts = await fetchSavoieData();
     
-    // Enrichissement analytique (Multi-tags & Niveaux de sévérité)
     window.ALL_ALERTS = rawAlerts.map(alert => {
         const textTarget = `${alert.title} ${alert.description}`.toLowerCase();
         
-        // 1. Système d'analyse Multi-Tags basé sur les mots-clés textuels
         let detectedTags = [];
         for (const [tag, keywords] of Object.entries(TAGS_KEYWORDS)) {
             if (keywords.some(kw => textTarget.includes(kw))) {
                 detectedTags.push(tag);
             }
         }
-        // Fallback sur la catégorie d'origine de l'API Savoie si aucun mot-clé spécifique n'a matché
         if (detectedTags.length === 0 && alert.originalCategory) {
             detectedTags.push(alert.originalCategory);
         }
 
-        // 2. Évaluation de la sévérité visuelle
         let severity = 'info';
         if (BLACKLIST_KEYWORDS.some(kw => textTarget.includes(kw.toLowerCase()))) {
             severity = 'blacklist';
         } else if (alert.isFlash) {
-            severity = 'danger'; // Priorité absolue aux flux Flash Info
+            severity = 'danger'; 
         } else if (detectedTags.includes('Fermeture') || detectedTags.includes('Accident')) {
             severity = 'danger';
         } else if (detectedTags.includes('Travaux') || detectedTags.includes('Bouchon') || detectedTags.includes('Obstacle')) {
@@ -157,15 +152,12 @@ function renderAlerts() {
     const showBlacklist = filterShowBlacklist ? filterShowBlacklist.checked : false;
 
     let filtered = window.ALL_ALERTS.filter(alert => {
-        // Gestion de la Liste Noire
         if (alert.computedSeverity === 'blacklist' && !showBlacklist && selectedSeverity !== 'blacklist') {
             return false;
         }
 
-        // Match de la recherche textuelle globale
         const matchSearch = alert.title.toLowerCase().includes(searchQuery) || alert.description.toLowerCase().includes(searchQuery);
         
-        // Match du filtrage par Multi-Tags
         let matchType = false;
         if (selectedType === 'all') {
             matchType = true;
@@ -175,13 +167,11 @@ function renderAlerts() {
             matchType = alert.computedTags.includes(selectedType);
         }
 
-        // Match du filtrage par Gravité visuelle
         const matchSeverity = selectedSeverity === 'all' || alert.computedSeverity === selectedSeverity;
 
         return matchSearch && matchType && matchSeverity;
     });
 
-    // Tri temporel dynamique
     filtered.sort((a, b) => {
         const dateA = a.startRaw ? new Date(a.startRaw) : new Date(0);
         const dateB = b.startRaw ? new Date(b.startRaw) : new Date(0);
@@ -211,13 +201,11 @@ function extractAndFormatDates(alert) {
     let debut = alert.startRaw ? formatDateString(alert.startRaw) : null;
     let fin = alert.endRaw ? formatDateString(alert.endRaw) : null;
 
-    // Analyse Regex de secours si la date de début est vide dans l'API
     if (!debut && alert.description) {
         const matchStart = alert.description.match(/(?:Début|Du)\s*[:\s]*(\d{2}\/\d{2}\/\d{4}(?:\s*\d{2}:\d{2})?)/i);
         if (matchStart) debut = matchStart[1];
     }
 
-    // Analyse Regex de secours si la date de fin est vide dans l'API
     if (!fin && alert.description) {
         const matchEnd = alert.description.match(/(?:Fin|jusqu'au|au)\s*[:\s]*(\d{2}\/\d{2}\/\d{4}(?:\s*\d{2}:\d{2})?)/i);
         if (matchEnd) fin = matchEnd[1];
@@ -235,55 +223,56 @@ function formatDateString(dateStr) {
     return dateStr;
 }
 
-// --- Rendu : Vue en Grille (Structure demandée) ---
+// --- Rendu : Vue en Grille (Nouvelle Structure Demandée) ---
 function renderGridView(alerts) {
     alertsGrid.className = "alerts-grid";
     alerts.forEach(alert => {
         const card = document.createElement('div');
         card.className = `card ${alert.computedSeverity} ${alert.isFlash ? 'flash-card' : ''}`;
         
-        // Tags du haut joints par un espace (alignés à gauche par CSS/HTML)
         const tagsHtml = alert.computedTags.map(t => `<span class="badge-tag">${t}</span>`).join(' ');
-        
-        // Extraction des métadonnées temporelles brutes ou textuelles
         const dates = extractAndFormatDates(alert);
-        
-        // Préparation des blocs conditionnels (si non disponibles, ils restent vides)
-        const impactHtml = alert.impact ? `<div class="card-impact" style="font-size: 0.9rem; color: #ffca28; margin-top: 5px;"><strong>Impact :</strong> ${alert.impact}</div>` : '';
-        const debutHtml = dates.debut ? `<div><strong>Début :</strong> ${dates.debut}</div>` : '';
-        const finHtml = dates.fin ? `<div><strong>Fin :</strong> ${dates.fin}</div>` : '';
         
         let wmeActionHtml = '';
         if (alert.lat && alert.lon) {
             wmeActionHtml = `
-                <div class="wme-actions" style="margin-top: 15px;">
+                <div class="wme-actions" style="margin-top: 10px;">
                     <a href="https://waze.com/fr/editor?env=row&lat=${alert.lat}&lon=${alert.lon}&zoomLevel=19" target="_blank" class="btn-wme wme-prod">WME Production</a>
                     <a href="https://beta.waze.com/fr/editor?env=row&lat=${alert.lat}&lon=${alert.lon}&zoomLevel=19" target="_blank" class="btn-wme wme-beta">WME Beta</a>
                 </div>
             `;
         }
 
-        // Rendu final respectant rigoureusement l'ordre demandé
         card.innerHTML = `
-            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                 <div class="tags-container" style="text-align: left;">${tagsHtml}</div>
                 <div class="dept-badge" style="text-align: right; font-weight: bold; font-size: 0.85rem; opacity: 0.8;">Dep. 73</div>
             </div>
             
-            <div class="card-title" style="font-weight: bold; font-size: 1.1rem; margin-bottom: 4px;">${alert.title}</div>
+            <div class="card-title" style="font-weight: bold; font-size: 1.1rem; margin-bottom: 10px;">${alert.title}</div>
             
-            ${impactHtml}
+            <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 8px 0;" />
             
-            <div class="card-spacer" style="height: 12px;"></div>
-            
-            <div class="card-body" style="white-space: pre-wrap; font-size: 0.95rem; line-height: 1.4; margin-bottom: 15px;">${alert.description || "Aucun détail complémentaire."}</div>
-            
-            <div class="card-footer-dates" style="font-size: 0.85rem; color: #bbb; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px; margin-bottom: 5px;">
-                ${debutHtml}
-                ${finHtml}
+            <div class="card-meta-block" style="font-size: 0.9rem; line-height: 1.45; margin-bottom: 10px;">
+                ${alert.impact ? `<div><strong>Impact :</strong> ${alert.impact}</div>` : ''}
+                ${dates.debut ? `<div><strong>Date début :</strong> ${dates.debut}</div>` : ''}
+                ${dates.fin ? `<div><strong>Date fin :</strong> ${dates.fin}</div>` : ''}
             </div>
             
-            ${wmeActionHtml}
+            <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 8px 0;" />
+            
+            <div class="card-body" style="white-space: pre-wrap; font-size: 0.95rem; line-height: 1.4; margin-bottom: 12px;">
+                <strong>Détail :</strong> ${alert.description || "Aucun détail complémentaire."}
+            </div>
+            
+            <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 8px 0;" />
+            
+            <div class="card-footer-structure" style="font-size: 0.8rem; color: #bbb;">
+                <div class="date-maj" style="margin-bottom: 8px;">
+                    🔄 <strong>Mise à jour carte :</strong> ${alert.updated || "Non spécifiée"}
+                </div>
+                ${wmeActionHtml}
+            </div>
         `;
         alertsGrid.appendChild(card);
     });
