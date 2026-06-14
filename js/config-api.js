@@ -38,6 +38,6 @@ export const BLACKLIST_KEYWORDS = [
     "Transit Intercit", 
     "Transport de matières dangereuses -",
     "Direction des Routes -",
-    "1-", "2-", "3-", "4-", "5-", "6-", "7-",
-    "1 -", "2 -", "3 -", "4 -", "5 -", "6 -", "7 -"
+    /*"1-", "2-", "3-", "4-", "5-", "6-", "7-",
+    "1 -", "2 -", "3 -", "4 -", "5 -", "6 -", "7 -"*/
 ];
