@@ -436,15 +436,41 @@ function renderGridView(alerts) {
             `;
         }
 
+        // --- 🏷️ DÉTECTION ET AJOUT DES TAGS AUTOMATIQUES ---
+        const detectedTags = [];
+        const textToScan = `${alert.title} ${alert.cross || ''}`.toLowerCase();
+
+        if (textToScan.includes('accident')) detectedTags.push('Accident');
+        if (textToScan.includes('ferm')) detectedTags.push('Fermeture');
+        if (textToScan.includes('cloture') || textToScan.includes('clôture')) detectedTags.push('Clôture');
+        if (textToScan.includes('travaux') || textToScan.includes('chantier')) detectedTags.push('Travaux');
+        if (textToScan.includes('alternat')) detectedTags.push('Alternat');
+
+        let tagsHtml = '';
+        if (detectedTags.length > 0) {
+            tagsHtml = `
+                <div class="card-tags" style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 15px;">
+                    ${detectedTags.map(tag => `
+                        <span class="tag-badge" style="background-color: rgba(255, 255, 255, 0.15); padding: 3px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; color: #fff; border: 1px solid rgba(255, 255, 255, 0.2);">
+                            🏷️ ${tag}
+                        </span>
+                    `).join('')}
+                </div>
+            `;
+        }
+
         card.innerHTML = `
             <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; text-align: left;">
                 <span class="card-type" style="font-weight: bold; font-size: 0.95rem; opacity: 0.8;">${displayType}</span>
                 <span class="card-dept" style="font-weight: bold; font-size: 0.95rem; opacity: 0.8;">Dép. 73</span>
             </div>
             
-            <div class="card-title" style="font-weight: bold; font-size: 1.1rem; margin-bottom: 20px; text-align: left; line-height: 1.35;">
+            <div class="card-title" style="font-weight: bold; font-size: 1.1rem; margin-bottom: 15px; text-align: left; line-height: 1.35;">
                 ${alert.title}
             </div>
+
+            <!-- Insertion des tags sous le titre -->
+            ${tagsHtml}
             
             <div class="card-meta-block" style="font-size: 0.95rem; line-height: 1.55; margin-bottom: 20px; text-align: left;">
                 <div><strong>Type:</strong> ${typeInfo}</div>
@@ -454,8 +480,9 @@ function renderGridView(alerts) {
                 ${dateFin ? `<div><strong>Date Fin:</strong> ${dateFin}</div>` : ''}
             </div>
             
-            <div class="card-body" style="white-space: pre-wrap; font-size: 0.95rem; line-height: 1.45; margin-bottom: 20px; text-align: left; padding: 0; width: 100%;">
-                <strong>Détail:</strong> ${detailInfo}
+            <!-- white-space: pre-wrap isolé uniquement sur le texte injecté pour supprimer l'indentation indésirable -->
+            <div class="card-body" style="font-size: 0.95rem; line-height: 1.45; margin-bottom: 20px; text-align: left; padding: 0; width: 100%;">
+                <strong>Détail:</strong> <span style="white-space: pre-wrap;">${detailInfo}</span>
             </div>
             
             <div class="card-footer-structure" style="font-size: 0.85rem; color: #bbb; text-align: left; margin-top: auto; padding-top: 10px;">
