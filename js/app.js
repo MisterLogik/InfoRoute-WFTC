@@ -48,70 +48,74 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initFilters() {
-    for (const [code, info] of Object.entries(DEPARTEMENTS_CONFIG)) {
-        const option = document.createElement('option');
-        option.value = code;
-        option.textContent = `${code} - ${info.name}`;
-        filterDept.appendChild(option);
+    if (filterDept) {
+        for (const [code, info] of Object.entries(DEPARTEMENTS_CONFIG)) {
+            const option = document.createElement('option');
+            option.value = code;
+            option.textContent = `${code} - ${info.name}`;
+            filterDept.appendChild(option);
+        }
     }
 }
 
 function setupEventListeners() {
-    btnSyncAll.addEventListener('click', synchronizeAll);
-    btnResetFilters.addEventListener('click', resetAllFilters);
-    btnToggleSort.addEventListener('click', toggleSortOrder);
+    if (btnSyncAll) btnSyncAll.addEventListener('click', synchronizeAll);
+    if (btnResetFilters) btnResetFilters.addEventListener('click', resetAllFilters);
+    if (btnToggleSort) btnToggleSort.addEventListener('click', toggleSortOrder);
     
-    btnQuickToday.addEventListener('click', setFilterToday);
-    btnQuickWeek.addEventListener('click', setFilterWeek);
-    btnQuickNextWeek.addEventListener('click', setFilterNextWeek);
-    btnQuickMonth.addEventListener('click', setFilterMonth);
-    btnQuickNextMonth.addEventListener('click', setFilterNextMonth); 
+    if (btnQuickToday) btnQuickToday.addEventListener('click', setFilterToday);
+    if (btnQuickWeek) btnQuickWeek.addEventListener('click', setFilterWeek);
+    if (btnQuickNextWeek) btnQuickNextWeek.addEventListener('click', setFilterNextWeek);
+    if (btnQuickMonth) btnQuickMonth.addEventListener('click', setFilterMonth);
+    if (btnQuickNextMonth) btnQuickNextMonth.addEventListener('click', setFilterNextMonth); 
 
-    btnViewGrid.addEventListener('click', () => { switchView('grid'); });
-    btnViewTable.addEventListener('click', () => { switchView('table'); });
+    if (btnViewGrid) btnViewGrid.addEventListener('click', () => { switchView('grid'); });
+    if (btnViewTable) btnViewTable.addEventListener('click', () => { switchView('table'); });
 
-    searchBar.addEventListener('input', renderAlerts);
-    filterDept.addEventListener('change', renderAlerts);
-    filterType.addEventListener('change', renderAlerts);
-    filterSeverity.addEventListener('change', renderAlerts);
-    filterShowBlacklist.addEventListener('change', renderAlerts); 
+    if (searchBar) searchBar.addEventListener('input', renderAlerts);
+    if (filterDept) filterDept.addEventListener('change', renderAlerts);
+    if (filterType) filterType.addEventListener('change', renderAlerts);
+    if (filterSeverity) filterSeverity.addEventListener('change', renderAlerts);
+    if (filterShowBlacklist) filterShowBlacklist.addEventListener('change', renderAlerts); 
     
-    filterCurrentOnly.addEventListener('change', renderAlerts);
-    filterDateStart.addEventListener('change', renderAlerts);
-    filterDateStartLogic.addEventListener('change', renderAlerts);
-    filterDateEnd.addEventListener('change', renderAlerts);
-    filterDateEndLogic.addEventListener('change', renderAlerts);
+    if (filterCurrentOnly) filterCurrentOnly.addEventListener('change', renderAlerts);
+    if (filterDateStart) filterDateStart.addEventListener('change', renderAlerts);
+    if (filterDateStartLogic) filterDateStartLogic.addEventListener('change', renderAlerts);
+    if (filterDateEnd) filterDateEnd.addEventListener('change', renderAlerts);
+    if (filterDateEndLogic) filterDateEndLogic.addEventListener('change', renderAlerts);
 }
 
 function switchView(viewType) {
     currentView = viewType;
     if (viewType === 'grid') {
-        btnViewGrid.classList.add('active');
-        btnViewTable.classList.remove('active');
+        if (btnViewGrid) btnViewGrid.classList.add('active');
+        if (btnViewTable) btnViewTable.classList.remove('active');
     } else {
-        btnViewGrid.classList.remove('active');
-        btnViewTable.classList.add('active');
+        if (btnViewGrid) btnViewGrid.classList.remove('active');
+        if (btnViewTable) btnViewTable.classList.add('active');
     }
     renderAlerts();
 }
 
 function toggleSortOrder() {
     sortAscending = !sortAscending;
-    btnToggleSort.innerHTML = sortAscending ? '⬇️ Tri : Date de début (Croissant)' : '⬇️ Tri : Date de début (Décroissant)';
+    if (btnToggleSort) {
+        btnToggleSort.innerHTML = sortAscending ? '⬇️ Tri : Date de début (Croissant)' : '⬇️ Tri : Date de début (Décroissant)';
+    }
     renderAlerts();
 }
 
 function resetAllFilters() {
-    searchBar.value = '';
-    filterDept.value = 'all';
-    filterType.value = 'all';
-    filterSeverity.value = 'all';
-    filterShowBlacklist.checked = false; 
-    filterCurrentOnly.checked = false;
-    filterDateStart.value = '';
-    filterDateStartLogic.value = 'after_or_on';
-    filterDateEnd.value = '';
-    filterDateEndLogic.value = 'before_or_on';
+    if (searchBar) searchBar.value = '';
+    if (filterDept) filterDept.value = 'all';
+    if (filterType) filterType.value = 'all';
+    if (filterSeverity) filterSeverity.value = 'all';
+    if (filterShowBlacklist) filterShowBlacklist.checked = false; 
+    if (filterCurrentOnly) filterCurrentOnly.checked = false;
+    if (filterDateStart) filterDateStart.value = '';
+    if (filterDateStartLogic) filterDateStartLogic.value = 'after_or_on';
+    if (filterDateEnd) filterDateEnd.value = '';
+    if (filterDateEndLogic) filterDateEndLogic.value = 'before_or_on';
     renderAlerts();
 }
 
@@ -124,7 +128,7 @@ function getYYYYMMDD(date) {
 
 function setFilterToday() {
     resetAllFilters();
-    filterCurrentOnly.checked = true;
+    if (filterCurrentOnly) filterCurrentOnly.checked = true;
     renderAlerts();
 }
 
@@ -134,11 +138,11 @@ function setFilterWeek() {
     const end = new Date();
     end.setDate(start.getDate() + 7); 
 
-    filterDateStartLogic.value = 'after_or_on';
-    filterDateStart.value = getYYYYMMDD(start);
+    if (filterDateStartLogic) filterDateStartLogic.value = 'after_or_on';
+    if (filterDateStart) filterDateStart.value = getYYYYMMDD(start);
     
-    filterDateEndLogic.value = 'before_or_on';
-    filterDateEnd.value = getYYYYMMDD(end);
+    if (filterDateEndLogic) filterDateEndLogic.value = 'before_or_on';
+    if (filterDateEnd) filterDateEnd.value = getYYYYMMDD(end);
     
     renderAlerts();
 }
@@ -151,11 +155,11 @@ function setFilterNextWeek() {
     const end = new Date();
     end.setDate(start.getDate() + 7); 
 
-    filterDateStartLogic.value = 'after_or_on';
-    filterDateStart.value = getYYYYMMDD(start);
+    if (filterDateStartLogic) filterDateStartLogic.value = 'after_or_on';
+    if (filterDateStart) filterDateStart.value = getYYYYMMDD(start);
     
-    filterDateEndLogic.value = 'before_or_on';
-    filterDateEnd.value = getYYYYMMDD(end);
+    if (filterDateEndLogic) filterDateEndLogic.value = 'before_or_on';
+    if (filterDateEnd) filterDateEnd.value = getYYYYMMDD(end);
     
     renderAlerts();
 }
@@ -165,11 +169,11 @@ function setFilterMonth() {
     const start = new Date();
     const end = new Date(start.getFullYear(), start.getMonth() + 1, 0); 
 
-    filterDateStartLogic.value = 'after_or_on';
-    filterDateStart.value = getYYYYMMDD(start);
+    if (filterDateStartLogic) filterDateStartLogic.value = 'after_or_on';
+    if (filterDateStart) filterDateStart.value = getYYYYMMDD(start);
     
-    filterDateEndLogic.value = 'before_or_on';
-    filterDateEnd.value = getYYYYMMDD(end);
+    if (filterDateEndLogic) filterDateEndLogic.value = 'before_or_on';
+    if (filterDateEnd) filterDateEnd.value = getYYYYMMDD(end);
     
     renderAlerts();
 }
@@ -180,19 +184,19 @@ function setFilterNextMonth() {
     const firstDayNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     const lastDayNextMonth = new Date(now.getFullYear(), now.getMonth() + 2, 0);
 
-    filterDateStartLogic.value = 'after_or_on';
-    filterDateStart.value = getYYYYMMDD(firstDayNextMonth);
+    if (filterDateStartLogic) filterDateStartLogic.value = 'after_or_on';
+    if (filterDateStart) filterDateStart.value = getYYYYMMDD(firstDayNextMonth);
     
-    filterDateEndLogic.value = 'before_or_on';
-    filterDateEnd.value = getYYYYMMDD(lastDayNextMonth);
+    if (filterDateEndLogic) filterDateEndLogic.value = 'before_or_on';
+    if (filterDateEnd) filterDateEnd.value = getYYYYMMDD(lastDayNextMonth);
     
     renderAlerts();
 }
 
 // --- GESTION DES FLUX ---
 async function synchronizeAll() {
-    loader.classList.remove('hidden');
-    btnSyncAll.disabled = true;
+    if (loader) loader.classList.remove('hidden');
+    if (btnSyncAll) btnSyncAll.disabled = true;
     window.ALL_ALERTS = []; 
 
     const fetchPromises = Object.keys(DEPARTEMENTS_CONFIG).map(async (code) => {
@@ -214,8 +218,8 @@ async function synchronizeAll() {
     const now = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
     localStorage.setItem('waze_tc_last_sync', now);
 
-    loader.classList.add('hidden');
-    btnSyncAll.disabled = false;
+    if (loader) loader.classList.add('hidden');
+    if (btnSyncAll) btnSyncAll.disabled = false;
     
     updateSyncStatus(now);
     renderAlerts();
@@ -233,21 +237,21 @@ function loadFromLocalStorage() {
 }
 
 function updateSyncStatus(time) {
-    syncStatus.textContent = `Dernière synchro : ${time}`;
+    if (syncStatus) syncStatus.textContent = `Dernière synchro : ${time}`;
 }
 
 function renderAlerts() {
-    const searchQuery = searchBar.value.toLowerCase().trim();
-    const selectedDept = filterDept.value;
-    const selectedType = filterType.value;
-    const selectedSeverity = filterSeverity.value;
-    const isShowBlacklistChecked = filterShowBlacklist.checked;
+    const searchQuery = searchBar ? searchBar.value.toLowerCase().trim() : '';
+    const selectedDept = filterDept ? filterDept.value : 'all';
+    const selectedType = filterType ? filterType.value : 'all';
+    const selectedSeverity = filterSeverity ? filterSeverity.value : 'all';
+    const isShowBlacklistChecked = filterShowBlacklist ? filterShowBlacklist.checked : false;
 
-    const currentOnly = filterCurrentOnly.checked;
-    const startTargetStr = filterDateStart.value;
-    const startLogic = filterDateStartLogic.value;
-    const endTargetStr = filterDateEnd.value;
-    const endLogic = filterDateEndLogic.value;
+    const currentOnly = filterCurrentOnly ? filterCurrentOnly.checked : false;
+    const startTargetStr = filterDateStart ? filterDateStart.value : '';
+    const startLogic = filterDateStartLogic ? filterDateStartLogic.value : 'after_or_on';
+    const endTargetStr = filterDateEnd ? filterDateEnd.value : '';
+    const endLogic = filterDateEndLogic ? filterDateEndLogic.value : 'before_or_on';
 
     const now = new Date();
     const oneYearAgo = new Date();
@@ -255,7 +259,7 @@ function renderAlerts() {
 
     let filtered = window.ALL_ALERTS.filter(alert => {
         const titleLower = alert.title.toLowerCase();
-        const crossLower = alert.cross.toLowerCase();
+        const crossLower = alert.cross ? alert.cross.toLowerCase() : '';
         const alertStartDate = parseAlertDate(alert.updated);
 
         const isAnyDateFilterActive = currentOnly || startTargetStr || endTargetStr;
@@ -371,6 +375,7 @@ function renderAlerts() {
         return sortAscending ? dateA - dateB : dateB - dateA;
     });
 
+    if (!alertsGrid) return;
     alertsGrid.innerHTML = '';
 
     if (filtered.length === 0) {
@@ -388,7 +393,7 @@ function renderAlerts() {
     updateStats(filtered.length, filtered);
 }
 
-// --- Rendu : Vue en Grille Structurée sans lignes de séparation ---
+// --- Rendu : Vue en Grille Structurée ---
 function renderGridView(alerts) {
     alertsGrid.className = "alerts-grid";
     alerts.forEach(alert => {
@@ -398,7 +403,6 @@ function renderGridView(alerts) {
         const isBl = alert.computedSeverity === 'blacklist';
         const displayType = isBl ? '🏳️ HORS DÉLAI / BLACKLIST' : alert.type;
 
-        // 1. Extraction propre des métadonnées analytiques
         let typeInfo = alert.computedCategory || alert.type;
         
         let impactInfo = alert.impact || "";
@@ -408,7 +412,6 @@ function renderGridView(alerts) {
         }
         if (!impactInfo) impactInfo = "Non spécifié";
 
-        // Nettoyage de l'emplacement basé sur le titre de l'alerte
         let emplacementInfo = "";
         if (alert.title.includes(' — ')) {
             const parts = alert.title.split(' — ');
@@ -420,7 +423,6 @@ function renderGridView(alerts) {
             emplacementInfo = alert.title;
         }
 
-        // Configuration intelligente des dates
         let dateDebut = "Non spécifiée";
         if (alert.updated && alert.updated !== "Récemment" && alert.updated !== "Date non spécifiée") {
             dateDebut = formatDisplayDate(alert.updated);
@@ -442,7 +444,6 @@ function renderGridView(alerts) {
             }
         }
 
-        // Isolation textuelle du détail épuré
         let detailInfo = alert.cross || "Aucun détail complémentaire.";
         if (detailInfo.includes("Détails :")) {
             const parts = detailInfo.split(/Détails\s*:\s*/i);
@@ -455,7 +456,6 @@ function renderGridView(alerts) {
         }
         if (!detailInfo) detailInfo = "Aucun détail complémentaire.";
 
-        // Définition de la mise à jour de l'alerte
         let majAlerte = "Non spécifiée";
         if (alert.updated && alert.updated !== "Récemment" && alert.updated !== "Date non spécifiée" && !alert.cross?.includes("Début :")) {
             majAlerte = formatDisplayDate(alert.updated);
@@ -473,7 +473,7 @@ function renderGridView(alerts) {
             `;
         }
 
-        // Rendu HTML strict : alignement total à gauche et séparation par espaces vides
+        // Rendu strict selon la hiérarchie demandée
         card.innerHTML = `
             <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; text-align: left;">
                 <span class="card-type" style="font-weight: bold; font-size: 0.95rem; opacity: 0.8;">${displayType}</span>
@@ -485,20 +485,20 @@ function renderGridView(alerts) {
             </div>
             
             <div class="card-meta-block" style="font-size: 0.95rem; line-height: 1.55; margin-bottom: 20px; text-align: left;">
-                <div><strong>Type :</strong> ${typeInfo}</div>
-                <div><strong>Impact :</strong> ${impactInfo}</div>
-                <div><strong>Emplacement :</strong> ${emplacementInfo}</div>
-                <div><strong>Date Début :</strong> ${dateDebut}</div>
-                ${dateFin ? `<div><strong>Date Fin :</strong> ${dateFin}</div>` : ''}
+                <div><strong>Type:</strong> ${typeInfo}</div>
+                <div><strong>Impact:</strong> ${impactInfo}</div>
+                <div><strong>Emplacement:</strong> ${emplacementInfo}</div>
+                <div><strong>Date Début:</strong> ${dateDebut}</div>
+                ${dateFin ? `<div><strong>Date Fin:</strong> ${dateFin}</div>` : ''}
             </div>
             
             <div class="card-body" style="white-space: pre-wrap; font-size: 0.95rem; line-height: 1.45; margin-bottom: 20px; text-align: left; padding: 0; width: 100%;">
-                <strong>Détail :</strong> ${detailInfo}
+                <strong>Détail:</strong> ${detailInfo}
             </div>
             
             <div class="card-footer-structure" style="font-size: 0.85rem; color: #bbb; text-align: left; margin-top: auto; padding-top: 10px;">
                 <div class="date-maj" style="margin-bottom: 5px;">
-                    <strong>Mise à jour alerte :</strong> ${majAlerte}
+                    <strong>Mise à jour alerte:</strong> ${majAlerte}
                 </div>
                 ${wmeActionHtml}
             </div>
@@ -508,6 +508,7 @@ function renderGridView(alerts) {
 }
 
 function renderTableView(alerts) {
+    if (!alertsGrid) return;
     alertsGrid.className = "";
     const container = document.createElement('div');
     container.className = "tc-table-container";
@@ -540,7 +541,7 @@ function renderTableView(alerts) {
                 <td><strong>${isBl ? 'Obsolète/BL' : alert.computedCategory}</strong></td>
                 <td>
                     <div style="font-weight:600; color:${isBl ? 'var(--text-muted)' : '#fff'};">${alert.title}</div>
-                    <div style="font-size:0.75rem; color:#aaa; max-height:40px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                    <div style="font-size:0.75rem; color:#aaa; max-width:40px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
                         ${displayCross}
                     </div>
                 </td>
@@ -607,7 +608,7 @@ function formatDisplayDate(dateStr) {
 }
 
 function updateStats(totalCount, filteredAlerts) {
-    statTotal.textContent = totalCount;
+    if (statTotal) statTotal.textContent = totalCount;
     let countsSeverity = { danger: 0, warning: 0, info: 0, blacklist: 0 };
     const countsDept = {};
 
@@ -616,19 +617,23 @@ function updateStats(totalCount, filteredAlerts) {
         countsDept[a.deptCode] = (countsDept[a.deptCode] || 0) + 1;
     });
 
-    statsBySeverity.innerHTML = `
-        <div class="severity-stat-badge" title="Bloquant Impératif">🔴 <strong>${countsSeverity.danger}</strong></div>
-        <div class="severity-stat-badge" title="À vérifier / Partiel">🟠 <strong>${countsSeverity.warning}</strong></div>
-        <div class="severity-stat-badge" title="Informatif / Mineur">🔘 <strong>${countsSeverity.info}</strong></div>
-        <div class="severity-stat-badge" title="Liste Noire / Obsolète">⚪ <strong>${countsSeverity.blacklist}</strong></div>
-    `;
+    if (statsBySeverity) {
+        statsBySeverity.innerHTML = `
+            <div class="severity-stat-badge" title="Bloquant Impératif">🔴 <strong>${countsSeverity.danger}</strong></div>
+            <div class="severity-stat-badge" title="À vérifier / Partiel">🟠 <strong>${countsSeverity.warning}</strong></div>
+            <div class="severity-stat-badge" title="Informatif / Mineur">🔘 <strong>${countsSeverity.info}</strong></div>
+            <div class="severity-stat-badge" title="Liste Noire / Obsolète">⚪ <strong>${countsSeverity.blacklist}</strong></div>
+        `;
+    }
 
-    statsByDept.innerHTML = '';
-    const sortedDepts = Object.entries(countsDept).sort((a, b) => b[1] - a[1]);
-    for (const [dept, count] of sortedDepts) {
-        const tag = document.createElement('span');
-        tag.className = 'dept-tag-stat';
-        tag.innerHTML = `📍 <strong>${dept}</strong> : ${count}`;
-        statsByDept.appendChild(tag);
+    if (statsByDept) {
+        statsByDept.innerHTML = '';
+        const sortedDepts = Object.entries(countsDept).sort((a, b) => b[1] - a[1]);
+        for (const [dept, count] of sortedDepts) {
+            const tag = document.createElement('span');
+            tag.className = 'dept-tag-stat';
+            tag.innerHTML = `📍 <strong>${dept}</strong> : ${count}`;
+            statsByDept.appendChild(tag);
+        }
     }
 }
