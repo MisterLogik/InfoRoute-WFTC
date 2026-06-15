@@ -275,7 +275,7 @@ function renderAlerts() {
         alert.computedCategory = calculatedType;
 
         const closureKeywords = ['coupé', 'coupee', 'coupée', 'coupés', 'coupées', 'barré', 'barrée', 'barrés', 'barrées', 'fermé', 'fermée', 'fermés', 'fermées', 'fermeture', 'interrompue'];
-        
+
         const detailLower = (alert.cross || "").toLowerCase();
         const combinedText = titleLower + " " + detailLower;
         
@@ -285,8 +285,19 @@ function renderAlerts() {
         let severity = 'info';
         
         if (isClosure) {
-            // Si fermeture, on classe en danger ou warning
-            severity = combinedText.includes('alternat') ? 'warning' : 'danger';
+            // --- NOUVELLE LOGIQUE DE PRIORITÉ ---
+            // On vérifie si l'impact indique une fermeture absolue ou si le texte contient un mot de coupure forte
+            // Si la route est coupée/interrompue, le ROUGE (danger) est PRIORITAIRE, même s'il y a un alternat en journée.
+            const hasAbsoluteClosure = combinedText.includes('interrompue') || combinedText.includes('coupé') || combinedText.includes('coupée') || combinedText.includes('fermé') || combinedText.includes('fermée');
+            
+            if (hasAbsoluteClosure) {
+                severity = 'danger'; // Priorité maximale : Rouge d'office
+            } else if (combinedText.includes('alternat')) {
+                severity = 'warning'; // Orange si c'est une fermeture partielle / alternat uniquement
+            } else {
+                severity = 'danger'; // Par défaut pour les autres types de fermeture
+            }
+            
         } else {
             // 2. SINON : On vérifie la blacklist (seulement si ce n'est pas une fermeture)
             const isBlacklisted = BLACKLIST_KEYWORDS.some(kw => 
