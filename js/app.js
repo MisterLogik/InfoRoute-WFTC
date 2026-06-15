@@ -472,18 +472,18 @@ function renderGridView(alerts) {
         }
 
         card.innerHTML = `
-            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; text-align: left;">
-                <span class="card-type" style="font-weight: bold; font-size: 0.95rem; opacity: 0.8;">${displayType}</span>
-                <span class="card-dept" style="font-weight: bold; font-size: 0.95rem; opacity: 0.8;">Dép. 73</span>
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; text-align: left;">
+                <span class="card-type" style="font-weight: bold; font-size: 0.8rem; opacity: 0.8;">${displayType}</span>
+                <span class="card-dept" style="font-weight: bold; font-size: 0.8rem; opacity: 0.8;">Dép. 73</span>
             </div>
             
-            <div class="card-title" style="font-weight: bold; font-size: 1.1rem; margin-bottom: 15px; text-align: left; line-height: 1.35;">
+            <div class="card-title" style="font-weight: bold; font-size: 0.95rem; margin-bottom: 10px; text-align: left; line-height: 1.3;">
                 ${alert.title}
             </div>
 
             ${tagsHtml}
             
-            <div class="card-meta-block" style="font-size: 0.95rem; line-height: 1.55; margin-bottom: 20px; text-align: left;">
+            <div class="card-meta-block" style="font-size: 0.8rem; line-height: 1.4; margin-bottom: 12px; text-align: left;">
                 <div><strong>Type:</strong> ${typeInfo}</div>
                 <div><strong>Impact:</strong> ${impactInfo}</div>
                 <div><strong>Emplacement:</strong> ${emplacementInfo}</div>
@@ -491,12 +491,12 @@ function renderGridView(alerts) {
                 ${dateFin ? `<div><strong>Date Fin:</strong> ${dateFin}</div>` : ''}
             </div>
             
-            <div class="card-body" style="font-size: 0.95rem; line-height: 1.45; margin-bottom: 20px; text-align: left; padding: 0; width: 100%;">
+            <div class="card-body" style="font-size: 0.8rem; line-height: 1.35; margin-bottom: 12px; text-align: left; padding: 0; width: 100%;">
                 <strong>Détail:</strong> <span style="white-space: pre-wrap;">${detailInfo}</span>
             </div>
             
-            <div class="card-footer-structure" style="font-size: 0.85rem; color: #bbb; text-align: left; margin-top: auto; padding-top: 10px;">
-                <div class="date-maj" style="margin-bottom: 5px;">
+            <div class="card-footer-structure" style="font-size: 0.75rem; color: #bbb; text-align: left; margin-top: auto; padding-top: 8px;">
+                <div class="date-maj" style="margin-bottom: 4px;">
                     <strong>Mise à jour alerte:</strong> ${formatDisplayDate(alert.updated) || 'Non spécifiée'}
                 </div>
                 ${wmeActionHtml}
