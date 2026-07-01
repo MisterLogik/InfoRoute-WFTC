@@ -7,6 +7,8 @@ export async function fetchDeptData(deptCode) {
     try {
         if (config.format === 'savoie-api') {
             return await fetchSavoieApiData(deptCode, config.apiUrlBase);
+        } else if (config.format === 'geojson-get') {
+            return await fetchGeojsonData(deptCode, config.urls);
         }
     } catch (error) {
         console.error(`Erreur globale de récupération pour le département ${deptCode}:`, error);
@@ -14,7 +16,65 @@ export async function fetchDeptData(deptCode) {
     return [];
 }
 
-// --- MOTEUR UNIQUE : API Savoie (73) ---
+// --- NOUVEAU MOTEUR UNIVERSEL : Flux GeoJSON standard & Turbolead (GET) ---
+async function fetchGeojsonData(deptCode, urls) {
+    let alerts = [];
+    
+    for (const url of urls) {
+        try {
+            const geojson = await gmGetJson(url);
+            if (!geojson || !Array.isArray(geojson.features)) continue;
+
+            geojson.features.forEach((feature, index) => {
+                const props = feature.properties || {};
+                const geom = feature.geometry || {};
+                
+                // Extraction intelligente des coordonnées géographiques (Points, Lignes ou Multi-Lignes)
+                let lat = null, lon = null;
+                if (geom.type === 'Point' && Array.isArray(geom.coordinates)) {
+                    lon = parseFloat(geom.coordinates[0]);
+                    lat = parseFloat(geom.coordinates[1]);
+                } else if ((geom.type === 'LineString' || geom.type === 'MultiPoint') && Array.isArray(geom.coordinates) && geom.coordinates[0]) {
+                    const firstPt = Array.isArray(geom.coordinates[0][0]) ? geom.coordinates[0][0] : geom.coordinates[0];
+                    lon = parseFloat(firstPt[0]);
+                    lat = parseFloat(firstPt[1]);
+                }
+
+                // Normalisation des champs textuels Turbolead / Standard
+                const axe = props.axe || props.route || props.Axe || props.route_libelle || '';
+                const commune = props.commune || props.ville || props.Commune || '';
+                const natureType = props.type || props.nature || props.gtype || props.libelleType || 'Alerte';
+                const description = props.description || props.texte || props.commentaire || props.Commentaire || '';
+                
+                const titre = [natureType, axe, commune].filter(Boolean).join(' — ') || `Événement #${deptCode}-${index}`;
+
+                // Construction d'un bloc de description unifié
+                let chunks = [];
+                chunks.push(`Type : ${natureType}`);
+                if (props.location || props.lieu) chunks.push(`Lieu : ${props.location || props.lieu}`);
+                if (props.date_deb || props.debut || props.Debut) chunks.push(`Début : ${props.date_deb || props.debut || props.Debut}`);
+                if (props.date_fin || props.fin || props.Fin) chunks.push(`Fin : ${props.date_fin || props.fin || props.Fin}`);
+                if (description) chunks.push(`\nDétails :\n${cleanText(description)}`);
+
+                alerts.push({
+                    id: `${deptCode}-${props.id || props.uid || props.idtInfo || index}`,
+                    type: natureType,
+                    title: titre,
+                    cross: chunks.join('\n').trim(),
+                    updated: props.date_deb || props.pubDate || props.date_maj || "Récemment",
+                    severity: 'info', // La sévérité (Rouge/Orange/Gris) sera calculée à la volée par la logique d'app.js
+                    lat: isNaN(lat) ? null : lat,
+                    lon: isNaN(lon) ? null : lon
+                });
+            });
+        } catch (err) {
+            console.warn(`Impossible de lire le flux GeoJSON ${url} du département ${deptCode}`, err);
+        }
+    }
+    return alerts;
+}
+
+// --- MOTEUR HISTORIQUE : API Savoie (73) ---
 async function fetchSavoieApiData(deptCode, apiBaseUrl) {
     let alerts = [];
     const categoryIds = Object.keys(SAVOIE_CATEGORIES);
@@ -75,7 +135,7 @@ async function fetchSavoieApiData(deptCode, apiBaseUrl) {
     return alerts;
 }
 
-// --- UTILS : Nettoyage et requêtes POST ---
+// --- UTILS : Nettoyage et requêtes ---
 function cleanText(str) {
     if (!str) return '';
     return String(str)
@@ -99,6 +159,17 @@ function gmPostJson(url, body) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
+    }).then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+    });
+}
+
+// Nouvelle fonction utilitaire pour envoyer des requêtes GET via le proxy
+function gmGetJson(url) {
+    const proxiedUrl = `${PROXY_URL}?url=${encodeURIComponent(url)}`;
+    return fetch(proxiedUrl, {
+        method: 'GET'
     }).then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
