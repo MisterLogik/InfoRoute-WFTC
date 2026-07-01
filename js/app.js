@@ -448,6 +448,8 @@ function renderGridView(alerts) {
         }
 
         let wmeActionHtml = '';
+        let coordsBlockHtml = ''; // Variable pour stocker le bloc de coordonnées léger
+        
         if (alert.lat && alert.lon) {
             const wmeProd = `https://waze.com/fr/editor?env=row&lat=${alert.lat}&lon=${alert.lon}&zoomLevel=19`;
             const wmeBeta = `https://beta.waze.com/fr/editor?env=row&lat=${alert.lat}&lon=${alert.lon}&zoomLevel=19`;
@@ -455,6 +457,14 @@ function renderGridView(alerts) {
                 <div class="wme-actions" style="margin-top: 15px; display: flex; gap: 10px;">
                     <a href="${wmeProd}" target="_blank" class="btn-wme wme-prod">WME Production</a>
                     <a href="${wmeBeta}" target="_blank" class="btn-wme wme-beta">WME Beta</a>
+                </div>
+            `;
+            
+            // Génération du rendu type Markdown `xx.xxxx, y.yyyy`
+            coordsBlockHtml = `
+                <div style="margin-top: 4px; display: flex; align-items: center; gap: 5px;">
+                    <strong>Coordonnées :</strong> 
+                    <code style="font-family: 'Courier New', Courier, monospace; background-color: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15); padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; color: #33ccff; letter-spacing: 0.5px;">${Number(alert.lat).toFixed(5)}, ${Number(alert.lon).toFixed(5)}</code>
                 </div>
             `;
         }
@@ -484,7 +494,7 @@ function renderGridView(alerts) {
         card.innerHTML = `
             <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; text-align: left;">
                 <span class="card-type" style="font-weight: bold; font-size: 0.8rem; opacity: 0.8;">${displayType}</span>
-                <span class="card-dept" style="font-weight: bold; font-size: 0.8rem; opacity: 0.8; background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius:4px;">Dép. ${alert.deptCode}</span>
+                <span class="card-dept" style="font-weight: bold; font-size: 0.8rem; opacity: 0.8;">Dép. 73</span>
             </div>
             
             <div class="card-title" style="font-weight: bold; font-size: 0.95rem; margin-bottom: 10px; text-align: left; line-height: 1.3;">
@@ -499,6 +509,7 @@ function renderGridView(alerts) {
                 <div><strong>Emplacement:</strong> ${emplacementInfo}</div>
                 <div><strong>Date Début:</strong> ${dateDebut}</div>
                 ${dateFin ? `<div><strong>Date Fin:</strong> ${dateFin}</div>` : ''}
+                ${coordsBlockHtml}
             </div>
             
             <div class="card-body" style="font-size: 0.8rem; line-height: 1.35; margin-bottom: 12px; text-align: left; padding: 0; width: 100%;">
