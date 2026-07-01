@@ -49,7 +49,17 @@ document.addEventListener('DOMContentLoaded', () => {
 function initFilters() {
     if (filterDept) {
         filterDept.innerHTML = '';
-        for (const [code, info] of Object.entries(DEPARTEMENTS_CONFIG)) {
+        
+        // Ajout de l'option universelle manquante pour tout afficher d'un coup
+        const optionAll = document.createElement('option');
+        optionAll.value = 'all';
+        optionAll.textContent = "📍 Tous les départements";
+        filterDept.appendChild(optionAll);
+
+        // Tri des codes de départements pour un affichage propre dans l'ordre (01, 04, 09, etc.)
+        const sortedCodes = Object.keys(DEPARTEMENTS_CONFIG).sort();
+        for (const code of sortedCodes) {
+            const info = DEPARTEMENTS_CONFIG[code];
             const option = document.createElement('option');
             option.value = code;
             option.textContent = `${code} - ${info.name}`;
@@ -474,7 +484,7 @@ function renderGridView(alerts) {
         card.innerHTML = `
             <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; text-align: left;">
                 <span class="card-type" style="font-weight: bold; font-size: 0.8rem; opacity: 0.8;">${displayType}</span>
-                <span class="card-dept" style="font-weight: bold; font-size: 0.8rem; opacity: 0.8;">Dép. 73</span>
+                <span class="card-dept" style="font-weight: bold; font-size: 0.8rem; opacity: 0.8; background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius:4px;">Dép. ${alert.deptCode}</span>
             </div>
             
             <div class="card-title" style="font-weight: bold; font-size: 0.95rem; margin-bottom: 10px; text-align: left; line-height: 1.3;">
