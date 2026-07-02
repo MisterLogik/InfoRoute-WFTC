@@ -49,7 +49,7 @@ async function fetchGeojsonData(deptCode, urls) {
                     const parts = props.titre.split(/\s*-\s*/);
                     if (parts.length >= 2) {
                         if (!axe) axe = parts[0].trim();
-                        if (!commune) commune = parts[1].trim();
+                        if (!commune) commune = parts.slice(1).join(' - ').trim();
                     }
                 }
 
@@ -122,9 +122,10 @@ async function fetchGeojsonData(deptCode, urls) {
                     title: titreUnifie,
                     cross: chunks.join('\n').trim(),
                     updated: dateDebut !== 'Non spécifiée' ? dateDebut : "Récemment",
-                    severity: 'info', // Géré dynamiquement à la volée
+                    severity: 'info', 
                     lat: isNaN(lat) ? null : lat,
-                    lon: isNaN(lon) ? null : lon
+                    lon: isNaN(lon) ? null : lon,
+                    docs: props.docs || [] // FIX : Sauvegarde des documents joints
                 });
             });
         } catch (err) {
