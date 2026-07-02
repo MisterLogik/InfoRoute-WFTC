@@ -1,237 +1,690 @@
-import { DEPARTEMENTS_CONFIG, SAVOIE_CATEGORIES, PROXY_URL } from './config-api.js';
+import { DEPARTEMENTS_CONFIG, BLACKLIST_KEYWORDS } from './config-api.js';
+import { fetchDeptData } from './fetcher.js';
 
-export async function fetchDeptData(deptCode) {
-    const config = DEPARTEMENTS_CONFIG[deptCode];
-    if (!config) return [];
+// --- État de l'application ---
+window.ALL_ALERTS = []; 
+let sortAscending = false; 
+let currentView = 'grid'; 
 
-    try {
-        if (config.format === 'savoie-api') {
-            return await fetchSavoieApiData(deptCode, config.apiUrlBase);
-        } else if (config.format === 'geojson-get') {
-            return await fetchGeojsonData(deptCode, config.urls);
+// --- Éléments du DOM ---
+const btnSyncAll = document.getElementById('btn-sync-all');
+const btnResetFilters = document.getElementById('btn-reset-filters');
+const btnToggleSort = document.getElementById('btn-toggle-sort');
+
+const btnQuickToday = document.getElementById('btn-quick-today');
+const btnQuickWeek = document.getElementById('btn-quick-week');
+const btnQuickNextWeek = document.getElementById('btn-quick-next-week');
+const btnQuickMonth = document.getElementById('btn-quick-month');
+const btnQuickNextMonth = document.getElementById('btn-quick-next-month'); 
+
+const btnViewGrid = document.getElementById('btn-view-grid');
+const btnViewTable = document.getElementById('btn-view-table');
+
+const syncStatus = document.getElementById('sync-status');
+const filterDept = document.getElementById('filter-dept');
+const filterType = document.getElementById('filter-type');
+const filterSeverity = document.getElementById('filter-severity');
+const filterShowBlacklist = document.getElementById('filter-show-blacklist'); 
+
+const filterCurrentOnly = document.getElementById('filter-current-only');
+const filterDateStart = document.getElementById('filter-date-start');
+const filterDateStartLogic = document.getElementById('filter-date-start-logic');
+const filterDateEnd = document.getElementById('filter-date-end');
+const filterDateEndLogic = document.getElementById('filter-date-end-logic');
+
+const searchBar = document.getElementById('search-bar');
+const alertsGrid = document.getElementById('alerts-grid');
+const loader = document.getElementById('loader');
+const statTotal = document.getElementById('stat-total');
+const statsBySeverity = document.getElementById('stats-by-severity'); 
+const statsByDept = document.getElementById('stats-by-dept');
+
+// --- Initialisation ---
+document.addEventListener('DOMContentLoaded', () => {
+    initFilters();
+    loadFromLocalStorage();
+    setupEventListeners();
+});
+
+function initFilters() {
+    if (filterDept) {
+        filterDept.innerHTML = '';
+        
+        // Ajout de l'option universelle manquante pour tout afficher d'un coup
+        const optionAll = document.createElement('option');
+        optionAll.value = 'all';
+        optionAll.textContent = "📍 Tous les départements";
+        filterDept.appendChild(optionAll);
+
+        // Tri des codes de départements pour un affichage propre dans l'ordre (01, 04, 09, etc.)
+        const sortedCodes = Object.keys(DEPARTEMENTS_CONFIG).sort();
+        for (const code of sortedCodes) {
+            const info = DEPARTEMENTS_CONFIG[code];
+            const option = document.createElement('option');
+            option.value = code;
+            option.textContent = `${code} - ${info.name}`;
+            filterDept.appendChild(option);
         }
-    } catch (error) {
-        console.error(`Erreur globale de récupération pour le département ${deptCode}:`, error);
     }
-    return [];
 }
 
-// --- NOUVEAU MOTEUR UNIVERSEL : Flux GeoJSON standard & Turbolead (GET) ---
-async function fetchGeojsonData(deptCode, urls) {
-    let alerts = [];
+function setupEventListeners() {
+    if (btnSyncAll) btnSyncAll.addEventListener('click', synchronizeAll);
+    if (btnResetFilters) btnResetFilters.addEventListener('click', resetAllFilters);
+    if (btnToggleSort) btnToggleSort.addEventListener('click', toggleSortOrder);
     
-    for (const url of urls) {
-        try {
-            const geojson = await gmGetJson(url);
-            if (!geojson || !Array.isArray(geojson.features)) continue;
+    if (btnQuickToday) btnQuickToday.addEventListener('click', setFilterToday);
+    if (btnQuickWeek) btnQuickWeek.addEventListener('click', setFilterWeek);
+    if (btnQuickNextWeek) btnQuickNextWeek.addEventListener('click', setFilterNextWeek);
+    if (btnQuickMonth) btnQuickMonth.addEventListener('click', setFilterMonth);
+    if (btnQuickNextMonth) btnQuickNextMonth.addEventListener('click', setFilterNextMonth); 
 
-            geojson.features.forEach((feature, index) => {
-                const props = feature.properties || {};
-                const geom = feature.geometry || {};
-                
-                // 1. Extraction des coordonnées géographiques
-                let lat = null, lon = null;
-                if (geom.type === 'Point' && Array.isArray(geom.coordinates)) {
-                    lon = parseFloat(geom.coordinates[0]);
-                    lat = parseFloat(geom.coordinates[1]);
-                } else if ((geom.type === 'LineString' || geom.type === 'MultiPoint') && Array.isArray(geom.coordinates) && geom.coordinates[0]) {
-                    const firstPt = Array.isArray(geom.coordinates[0][0]) ? geom.coordinates[0][0] : geom.coordinates[0];
-                    lon = parseFloat(firstPt[0]);
-                    lat = parseFloat(firstPt[1]);
-                }
+    if (btnViewGrid) btnViewGrid.addEventListener('click', () => { switchView('grid'); });
+    if (btnViewTable) btnViewTable.addEventListener('click', () => { switchView('table'); });
 
-                // 2. Récupération ou découpage intelligent de l'axe et de la commune
-                let axe = props.axe || props.route || props.Axe || props.route_libelle || '';
-                let commune = props.commune || props.ville || props.Commune || '';
-                
-                // Si Turbolead fournit un titre composite (ex: "RD 251 - THUSY - Info travaux")
-                if (props.titre && (!axe || !commune)) {
-                    const parts = props.titre.split(/\s*-\s*/);
-                    if (parts.length >= 2) {
-                        if (!axe) axe = parts[0].trim();
-                        if (!commune) commune = parts[1].trim();
-                    }
-                }
-
-                // 3. Déduction intelligente de la Nature et de l'Impact via analyse de texte
-                const description = props.description || props.texte || props.commentaire || props.Commentaire || '';
-                const scanZone = `${props.titre || ''} ${description}`.toLowerCase();
-                
-                let natureType = 'Alerte';
-                if (scanZone.includes('travaux') || scanZone.includes('chantier') || scanZone.includes('ouvrage d’art')) {
-                    natureType = 'Travaux';
-                } else if (scanZone.includes('ferme') || scanZone.includes('coupé') || scanZone.includes('barré')) {
-                    natureType = 'Fermeture';
-                } else if (scanZone.includes('accident') || scanZone.includes('collision')) {
-                    natureType = 'Accident';
-                
-                } else if (scanZone.includes('incendie') || scanZone.includes('feu de') || scanZone.includes('feux de') || scanZone.includes('fumée')) {
-                    natureType = 'Incendie';
-                
-                } else if (
-                    scanZone.includes('neige') || scanZone.includes('verglas') || scanZone.includes('chasseneige') || 
-                    scanZone.includes('hivernal') || scanZone.includes('tempête') || scanZone.includes('vent ') || 
-                    scanZone.includes('rafale') || scanZone.includes('inondation') || scanZone.includes('crue') || 
-                    scanZone.includes('viabilité') || scanZone.includes('météo')
-                ) {
-                    natureType = 'Météo';
-                    
-                } else if (scanZone.includes('manifestation') || scanZone.includes('sportive')) {
-                    natureType = 'Manifestation';
-                } else if (scanZone.includes('bouchon') || scanZone.includes('ralentissement')) {
-                    natureType = 'Bouchon';
-                }
-
-                let impact = 'Restriction';
-                if (scanZone.includes('24h / 24') && (scanZone.includes('fermé') || scanZone.includes('coupé'))) {
-                    impact = 'Route coupée 24h/24';
-                } else if (scanZone.includes('route fermée') || scanZone.includes('route coupée')) {
-                    impact = 'Route coupée';
-                } else if (scanZone.includes('alternat')) {
-                    impact = 'Alternat';
-                }
-
-                // 4. Reconstruction du Titre au format standardisé "Nature — Axe — Commune"
-                const titreUnifie = [natureType, axe, commune].filter(Boolean).join(' — ') || props.titre || `Événement #${deptCode}-${index}`;
-
-                // 5. Normalisation des dates (Gestion du format "JJ/MM/AA HH:MM" de Turbolead)
-                const dateDebRaw = props.date_evt_debut || props.date_deb || props.debut || props.Debut || '';
-                const dateFinRaw = props.date_evt_fin || props.date_fin || props.fin || props.Fin || '';
-                console.log(`Debug Dept ${deptCode} - Date brute lue: "${dateDebRaw}"`);
-
-                const formatYear = (str) => {
-                    if (!str) return '';
-                    // Remplacement chirurgical et fiable du format strict "JJ/MM/AA" par "JJ/MM/20AA"
-                    return str.replace(/^(\d{2})\/(\d{2})\/(\d{2})(\b|\s+)/, '$1/$2/20$3$4').trim();
-                };
-
-                const dateDebut = formatYear(dateDebRaw) || 'Non spécifiée';
-                const dateFin = formatYear(dateFinRaw);
-
-                // 6. Assemblage du bloc textuel attendu par app.js
-                let chunks = [];
-                chunks.push(`Type : ${natureType}`);
-                chunks.push(`Impact : ${impact}`);
-                if (props.location || props.lieu) chunks.push(`Lieu : ${props.location || props.lieu}`);
-                chunks.push(`Début : ${dateDebut}`);
-                if (dateFin) chunks.push(`Fin : ${dateFin}`);
-                if (description) chunks.push(`\nDétails :\n${cleanText(description)}`);
-
-                alerts.push({
-                    id: `${deptCode}-${props.id || props.uid || props.idtInfo || props.id_repere || index}`,
-                    type: natureType,
-                    title: titreUnifie,
-                    cross: chunks.join('\n').trim(),
-                    updated: dateDebut !== 'Non spécifiée' ? dateDebut : "Récemment",
-                    severity: 'info', // Géré dynamiquement à la volée
-                    lat: isNaN(lat) ? null : lat,
-                    lon: isNaN(lon) ? null : lon
-                });
-            });
-        } catch (err) {
-            console.warn(`Impossible de lire le flux GeoJSON ${url} du département ${deptCode}`, err);
-        }
-    }
-    return alerts;
+    if (searchBar) searchBar.addEventListener('input', renderAlerts);
+    if (filterDept) filterDept.addEventListener('change', renderAlerts);
+    if (filterType) filterType.addEventListener('change', renderAlerts);
+    if (filterSeverity) filterSeverity.addEventListener('change', renderAlerts);
+    if (filterShowBlacklist) filterShowBlacklist.addEventListener('change', renderAlerts); 
+    
+    if (filterCurrentOnly) filterCurrentOnly.addEventListener('change', renderAlerts);
+    if (filterDateStart) filterDateStart.addEventListener('change', renderAlerts);
+    if (filterDateStartLogic) filterDateStartLogic.addEventListener('change', renderAlerts);
+    if (filterDateEnd) filterDateEnd.addEventListener('change', renderAlerts);
+    if (filterDateEndLogic) filterDateEndLogic.addEventListener('change', renderAlerts);
 }
 
-// --- MOTEUR HISTORIQUE : API Savoie (73) ---
-async function fetchSavoieApiData(deptCode, apiBaseUrl) {
-    let alerts = [];
-    const categoryIds = Object.keys(SAVOIE_CATEGORIES);
+function switchView(viewType) {
+    currentView = viewType;
+    if (viewType === 'grid') {
+        if (btnViewGrid) btnViewGrid.classList.add('active');
+        if (btnViewTable) btnViewTable.classList.remove('active');
+    } else {
+        if (btnViewGrid) btnViewGrid.classList.remove('active');
+        if (btnViewTable) btnViewTable.classList.add('active');
+    }
+    renderAlerts();
+}
 
-    for (const catId of categoryIds) {
-        try {
-            const list = await gmPostJson(apiBaseUrl, { id: parseInt(catId) });
-            if (!Array.isArray(list)) continue;
+function toggleSortOrder() {
+    sortAscending = !sortAscending;
+    if (btnToggleSort) {
+        btnToggleSort.innerHTML = sortAscending ? '⬇️ Tri : Date de début (Croissant)' : '⬇️ Tri : Date de début (Décroissant)';
+    }
+    renderAlerts();
+}
 
-            for (const item of list) {
-                try {
-                    const detail = await gmPostJson(`${apiBaseUrl}/allData`, { idAll: item.idtInfo });
-                    
-                    let d = detail;
-                    if (detail && detail.Detail_allData && Array.isArray(detail.Detail_allData)) d = detail.Detail_allData[0];
-                    else if (Array.isArray(detail)) d = detail[0];
+function resetAllFilters() {
+    if (searchBar) searchBar.value = '';
+    if (filterDept) filterDept.value = 'all';
+    if (filterType) filterType.value = 'all';
+    if (filterSeverity) filterSeverity.value = 'all';
+    if (filterShowBlacklist) filterShowBlacklist.checked = false; 
+    if (filterCurrentOnly) filterCurrentOnly.checked = false;
+    if (filterDateStart) filterDateStart.value = '';
+    if (filterDateStartLogic) filterDateStartLogic.value = 'after_or_on';
+    if (filterDateEnd) filterDateEnd.value = '';
+    if (filterDateEndLogic) filterDateEndLogic.value = 'before_or_on';
+    renderAlerts();
+}
 
-                    if (!d) continue;
+function getYYYYMMDD(date) {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+}
 
-                    const lat = parseFloat(d.Latitude || item.latitude || d.latitude);
-                    const lon = parseFloat(d.Longitude || item.longitude || d.longitude);
+function setFilterToday() {
+    resetAllFilters();
+    if (filterCurrentOnly) filterCurrentOnly.checked = true;
+    renderAlerts();
+}
 
-                    const axe = d.Axe || item.axe || '';
-                    const commune = d.Commune || item.commune || '';
-                    const frType = d.FRType || item.libelleType || '';
-                    const titre = [frType, axe, commune].filter(Boolean).join(' — ') || `Alerte #${item.idtInfo}`;
+function setFilterWeek() {
+    resetAllFilters();
+    const start = new Date();
+    const end = new Date();
+    end.setDate(start.getDate() + 7); 
 
-                    let chunks = [];
-                    const typeSoustype = [d.FRType, d.FRsousType].map(s => s ? s.trim() : '').filter(Boolean).join(' - ');
-                    if (typeSoustype) chunks.push(`Type : ${typeSoustype}`);
-                    if (d.FRTrafficConstrictionType && d.FRTrafficConstrictionType !== "null") chunks.push(`Impact : ${d.FRTrafficConstrictionType.trim()}`);
-                    if (d.Debut) chunks.push(`Début : ${new Date(d.Debut).toLocaleString('fr-FR')}`);
-                    if (d.Fin) chunks.push(`Fin : ${new Date(d.Fin).toLocaleString('fr-FR')}`);
-                    
-                    const commBrut = d.Commentaire || item.commentaire;
-                    if (commBrut && commBrut !== "null") chunks.push(`\nDétails :\n${cleanText(commBrut)}`);
+    if (filterDateStartLogic) filterDateStartLogic.value = 'after_or_on';
+    if (filterDateStart) filterDateStart.value = getYYYYMMDD(start);
+    
+    if (filterDateEndLogic) filterDateEndLogic.value = 'before_or_on';
+    if (filterDateEnd) filterDateEnd.value = getYYYYMMDD(end);
+    
+    renderAlerts();
+}
 
-                    const catConfig = SAVOIE_CATEGORIES[catId];
+function setFilterNextWeek() {
+    resetAllFilters();
+    const start = new Date();
+    start.setDate(start.getDate() + 7); 
+    const end = new Date();
+    end.setDate(start.getDate() + 7); 
 
-                    alerts.push({
-                        id: `73-${item.idtInfo}`,
-                        type: catConfig.name,
-                        title: titre,
-                        cross: chunks.join('\n').trim(),
-                        updated: d.Debut || "Récemment",
-                        severity: catConfig.severity,
-                        lat: isNaN(lat) ? null : lat,
-                        lon: isNaN(lon) ? null : lon
-                    });
-                } catch (err) {
-                    console.warn(`Erreur détails alerte Savoie #${item.idtInfo}`, err);
-                }
+    if (filterDateStartLogic) filterDateStartLogic.value = 'after_or_on';
+    if (filterDateStart) filterDateStart.value = getYYYYMMDD(start);
+    
+    if (filterDateEndLogic) filterDateEndLogic.value = 'before_or_on';
+    if (filterDateEnd) filterDateEnd.value = getYYYYMMDD(end);
+    
+    renderAlerts();
+}
+
+function setFilterMonth() {
+    resetAllFilters();
+    const start = new Date();
+    const end = new Date(start.getFullYear(), start.getMonth() + 1, 0); 
+
+    if (filterDateStartLogic) filterDateStartLogic.value = 'after_or_on';
+    if (filterDateStart) filterDateStart.value = getYYYYMMDD(start);
+    
+    if (filterDateEndLogic) filterDateEndLogic.value = 'before_or_on';
+    if (filterDateEnd) filterDateEnd.value = getYYYYMMDD(end);
+    
+    renderAlerts();
+}
+
+function setFilterNextMonth() {
+    resetAllFilters();
+    const now = new Date();
+    const firstDayNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const lastDayNextMonth = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+
+    if (filterDateStartLogic) filterDateStartLogic.value = 'after_or_on';
+    if (filterDateStart) filterDateStart.value = getYYYYMMDD(firstDayNextMonth);
+    
+    if (filterDateEndLogic) filterDateEndLogic.value = 'before_or_on';
+    if (filterDateEnd) filterDateEnd.value = getYYYYMMDD(lastDayNextMonth);
+    
+    renderAlerts();
+}
+
+async function synchronizeAll() {
+    if (loader) loader.classList.remove('hidden');
+    if (btnSyncAll) btnSyncAll.disabled = true;
+    window.ALL_ALERTS = []; 
+
+    const fetchPromises = Object.keys(DEPARTEMENTS_CONFIG).map(async (code) => {
+        const deptAlerts = await fetchDeptData(code);
+        return deptAlerts.map(alert => {
+            const detectionTime = new Date().toISOString();
+            return { 
+                ...alert, 
+                deptCode: code,
+                discoveredAt: alert.discoveredAt || detectionTime 
+            };
+        });
+    });
+
+    const results = await Promise.all(fetchPromises);
+    window.ALL_ALERTS = results.flat(); 
+
+    localStorage.setItem('waze_tc_alerts', JSON.stringify(window.ALL_ALERTS));
+    const now = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    localStorage.setItem('waze_tc_last_sync', now);
+
+    if (loader) loader.classList.add('hidden');
+    if (btnSyncAll) btnSyncAll.disabled = false;
+    
+    updateSyncStatus(now);
+    renderAlerts();
+}
+
+function loadFromLocalStorage() {
+    const localData = localStorage.getItem('waze_tc_alerts');
+    const localTime = localStorage.getItem('waze_tc_last_sync');
+    
+    if (localData) {
+        window.ALL_ALERTS = JSON.parse(localData);
+        updateSyncStatus(localTime);
+        renderAlerts();
+    }
+}
+
+function updateSyncStatus(time) {
+    if (syncStatus) syncStatus.textContent = `Dernière synchro : ${time}`;
+}
+
+function renderAlerts() {
+    const searchQuery = searchBar ? searchBar.value.toLowerCase().trim() : '';
+    const selectedDept = filterDept ? filterDept.value : 'all';
+    const selectedType = filterType ? filterType.value : 'all';
+    const selectedSeverity = filterSeverity ? filterSeverity.value : 'all';
+    const isShowBlacklistChecked = filterShowBlacklist ? filterShowBlacklist.checked : false;
+
+    const currentOnly = filterCurrentOnly ? filterCurrentOnly.checked : false;
+    const startTargetStr = filterDateStart ? filterDateStart.value : '';
+    const startLogic = filterDateStartLogic ? filterDateStartLogic.value : 'after_or_on';
+    const endTargetStr = filterDateEnd ? filterDateEnd.value : '';
+    const endLogic = filterDateEndLogic ? filterDateEndLogic.value : 'before_or_on';
+
+    const now = new Date();
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(now.getFullYear() - 1); 
+
+    let filtered = window.ALL_ALERTS.filter(alert => {
+        const titleLower = alert.title.toLowerCase();
+        const crossLower = alert.cross ? alert.cross.toLowerCase() : '';
+        const alertStartDate = parseAlertDate(alert.updated);
+
+        const isAnyDateFilterActive = currentOnly || startTargetStr || endTargetStr;
+        if (isAnyDateFilterActive && !alertStartDate) {
+            return false;
+        }
+
+        let calculatedType = alert.type;
+        if (alert.type.toLowerCase().includes('travaux') || alert.type.toLowerCase().includes('chantier')) {
+            const hasAlternatKeywords = crossLower.includes('alternat') || crossLower.includes('restriction') || crossLower.includes('voie impactée') || crossLower.includes('circulation alternée');
+            calculatedType = hasAlternatKeywords ? 'Alternat' : 'Fermeture';
+        } else if (titleLower.includes('ferm') || crossLower.includes('route fermée') || crossLower.includes('fermeture')) {
+            calculatedType = 'Fermeture';
+        }
+        alert.computedCategory = calculatedType;
+
+        const closureKeywords = ['coupé', 'coupee', 'coupée', 'coupés', 'coupées', 'barré', 'barrée', 'barrés', 'barrées', 'fermé', 'fermée', 'fermés', 'fermées', 'fermeture', 'interrompue'];
+
+        const detailLower = (alert.cross || "").toLowerCase();
+        const combinedText = titleLower + " " + detailLower;
+        
+        // 1. DÉTECTION PRIORITAIRE : Si c'est une fermeture, on ignore la blacklist
+        const isClosure = closureKeywords.some(kw => combinedText.includes(kw));
+        
+        let severity = 'info';
+        
+        if (isClosure) {
+            // --- NOUVELLE LOGIQUE DE PRIORITÉ ---
+            // On vérifie si l'impact indique une fermeture absolue ou si le texte contient un mot de coupure forte
+            // Si la route est coupée/interrompue, le ROUGE (danger) est PRIORITAIRE, même s'il y a un alternat en journée.
+            const hasAbsoluteClosure = combinedText.includes('interrompue') || combinedText.includes('coupé') || combinedText.includes('coupée') || combinedText.includes('fermé') || combinedText.includes('fermée');
+            
+            if (hasAbsoluteClosure) {
+                severity = 'danger'; // Priorité maximale : Rouge d'office
+            } else if (combinedText.includes('alternat')) {
+                severity = 'warning'; // Orange si c'est une fermeture partielle / alternat uniquement
+            } else {
+                severity = 'danger'; // Par défaut pour les autres types de fermeture
             }
-        } catch (err) {
-            console.warn(`Erreur liste Savoie Catégorie ${catId}`, err);
+            
+        } else {
+            // 2. SINON : On vérifie la blacklist (seulement si ce n'est pas une fermeture)
+            const isBlacklisted = BLACKLIST_KEYWORDS.some(kw => 
+                titleLower.includes(kw.toLowerCase()) || detailLower.includes(kw.toLowerCase())
+            );
+            
+            if (isBlacklisted || (alertStartDate && alertStartDate < oneYearAgo)) {
+                severity = 'blacklist';
+            }
+        }
+        
+        alert.computedSeverity = severity;
+
+        if (alert.computedSeverity === 'blacklist' && !isShowBlacklistChecked && selectedSeverity !== 'blacklist') {
+            return false; 
+        }
+
+        const matchSearch = titleLower.includes(searchQuery) || crossLower.includes(searchQuery);
+        const matchDept = selectedDept === 'all' || alert.deptCode === selectedDept;
+        
+        let matchType = false;
+        if (selectedType === 'all') {
+            matchType = true;
+        } else if (selectedType === 'Alternat') {
+            matchType = alert.computedCategory === 'Alternat';
+        } else if (selectedType === 'Fermeture') {
+            matchType = alert.computedCategory === 'Fermeture' || alert.type.toLowerCase().includes('ferm');
+        } else {
+            matchType = alert.type.toLowerCase().includes(selectedType.toLowerCase());
+        }
+
+        const matchSeverity = selectedSeverity === 'all' || alert.computedSeverity === selectedSeverity;
+
+        if (!matchSearch || !matchDept || !matchType || !matchSeverity) return false;
+
+        if (currentOnly && alertStartDate) {
+            if (alertStartDate > now) return false;
+            const actualEndDate = extractEndDate(alert.cross);
+            if (actualEndDate && actualEndDate < now) return false;
+        }
+
+        if (startTargetStr && alertStartDate) {
+            const target = new Date(startTargetStr);
+            target.setHours(0, 0, 0, 0);
+            const compDate = new Date(alertStartDate);
+            compDate.setHours(0, 0, 0, 0);
+
+            if (startLogic === 'before_or_on' && compDate > target) return false;
+            if (startLogic === 'after_or_on' && compDate < target) return false;
+        }
+
+        if (endTargetStr && alertStartDate) {
+            const actualEndDate = extractEndDate(alert.cross) || alertStartDate; 
+
+            const target = new Date(endTargetStr);
+            target.setHours(23, 59, 59, 999);
+            const compDate = new Date(actualEndDate);
+            compDate.setHours(0, 0, 0, 0);
+
+            if (endLogic === 'before_or_on' && compDate > target) return false;
+            if (endLogic === 'after_or_on' && compDate < target) return false;
+        }
+
+        return true;
+    });
+
+    filtered.sort((a, b) => {
+        const dateA = parseAlertDate(a.updated) || (a.discoveredAt ? new Date(a.discoveredAt) : new Date(0));
+        const dateB = parseAlertDate(b.updated) || (b.discoveredAt ? new Date(b.discoveredAt) : new Date(0));
+        return sortAscending ? dateA - dateB : dateB - dateA;
+    });
+
+    if (!alertsGrid) return;
+    alertsGrid.innerHTML = '';
+
+    if (filtered.length === 0) {
+        alertsGrid.innerHTML = `<div class="empty-state">Aucun événement ne correspond aux critères sélectionnés.</div>`;
+        updateStats(0, filtered);
+        return;
+    }
+
+    if (currentView === 'grid') {
+        renderGridView(filtered);
+    } else {
+        renderTableView(filtered);
+    }
+
+    updateStats(filtered.length, filtered);
+}
+
+// --- RENDU GRILLE STRUCTURÉE ---
+// --- RENDU GRILLE STRUCTURÉE ---
+function renderGridView(alerts) {
+    alertsGrid.className = "alerts-grid";
+    alerts.forEach(alert => {
+        const card = document.createElement('div');
+        card.className = `card ${alert.computedSeverity}`;
+        
+        const isBl = alert.computedSeverity === 'blacklist';
+        const displayType = isBl ? '🏳️ HORS DÉLAI / BLACKLIST' : (alert.computedCategory === 'Alternat' ? '🚧 TRAVAUX (Alternat)' : `⛔ ${alert.type.toUpperCase()}`);
+
+        let typeInfo = alert.type;
+        let impactInfo = "Non spécifié";
+        let dateDebut = formatDisplayDate(alert.updated) || "Non spécifiée";
+        let dateFin = "";
+        let detailInfo = "Aucun détail complémentaire.";
+
+        if (alert.cross) {
+            const matchType = alert.cross.match(/Type\s*:\s*([^\n]+)/i);
+            if (matchType) typeInfo = matchType[1].trim();
+
+            const matchImpact = alert.cross.match(/Impact\s*:\s*([^\n]+)/i);
+            if (matchImpact) impactInfo = matchImpact[1].trim();
+
+            const matchDeb = alert.cross.match(/Début\s*:\s*([^\n]+)/i);
+            if (matchDeb) dateDebut = matchDeb[1].trim();
+
+            const matchFin = alert.cross.match(/Fin\s*:\s*([^\n]+)/i);
+            if (matchFin) dateFin = matchFin[1].trim();
+
+            const matchDet = alert.cross.split(/Détails\s*:\s*/i);
+            if (matchDet[1]) {
+                detailInfo = matchDet[1].trim();
+            } else {
+                detailInfo = alert.cross.split('\n').filter(line => {
+                    const l = line.toLowerCase().trim();
+                    return !l.startsWith('type :') && !l.startsWith('impact :') && !l.startsWith('début :') && !l.startsWith('fin :');
+                }).join('\n').trim();
+            }
+        }
+
+        let emplacementInfo = alert.title;
+        if (alert.title.includes(' — ')) {
+            const parts = alert.title.split(' — ');
+            emplacementInfo = parts.slice(1).join(' — ');
+        } else if (alert.title.includes(' - ')) {
+            const parts = alert.title.split(' - ');
+            emplacementInfo = parts.slice(1).join(' - ');
+        }
+
+        let wmeActionHtml = '';
+        let coordsBlockHtml = ''; // Initialisé vide si pas de géoloc
+        
+        if (alert.lat && alert.lon) {
+            const wmeProd = `https://waze.com/fr/editor?env=row&lat=${alert.lat}&lon=${alert.lon}&zoomLevel=19`;
+            const wmeBeta = `https://beta.waze.com/fr/editor?env=row&lat=${alert.lat}&lon=${alert.lon}&zoomLevel=19`;
+            wmeActionHtml = `
+                <div class="wme-actions" style="margin-top: 15px; display: flex; gap: 10px;">
+                    <a href="${wmeProd}" target="_blank" class="btn-wme wme-prod">WME Production</a>
+                    <a href="${wmeBeta}" target="_blank" class="btn-wme wme-beta">WME Beta</a>
+                </div>
+            `;
+            
+            // Format épuré : texte gris, sans fioritures
+            coordsBlockHtml = `
+                <div class="date-coords" style="margin-bottom: 4px; color: #aaa;">
+                    <strong>Coordonnées :</strong> ${Number(alert.lat).toFixed(5)}, ${Number(alert.lon).toFixed(5)}
+                </div>
+            `;
+        }
+
+        const detectedTags = [];
+        const textToScan = `${alert.title} ${alert.cross || ''}`.toLowerCase();
+        
+        if (textToScan.includes('accident')) detectedTags.push('Accident');
+        if (textToScan.includes('ferm')) detectedTags.push('Fermeture');
+        if (textToScan.includes('cloture') || textToScan.includes('clôture')) detectedTags.push('Clôture');
+        if (textToScan.includes('travaux') || textToScan.includes('chantier')) detectedTags.push('Travaux');
+        if (textToScan.includes('alternat')) detectedTags.push('Alternat');
+        
+        // BADGE INCENDIE
+        if (textToScan.includes('incendie') || textToScan.includes('feu de') || textToScan.includes('feux de') || textToScan.includes('fumée')) {
+            detectedTags.push('🔥 Incendie');
+        }
+        
+        // BADGE MÉTÉO UNIQUE (Regroupe tous les critères climatiques)
+        if (
+            textToScan.includes('neige') || textToScan.includes('verglas') || textToScan.includes('tempête') || 
+            textToScan.includes('vent') || textToScan.includes('inondation') || textToScan.includes('crue') ||
+            textToScan.includes('météo') || textToScan.includes('viabilité')
+        ) {
+            detectedTags.push('❄️ Météo / Viabilité');
+        }
+
+        let tagsHtml = '';
+        if (detectedTags.length > 0) {
+            tagsHtml = `
+                <div class="card-tags" style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 15px;">
+                    ${detectedTags.map(tag => `
+                        <span class="tag-badge" style="background-color: rgba(255, 255, 255, 0.15); padding: 3px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; color: #fff; border: 1px solid rgba(255, 255, 255, 0.2);">
+                            🏷️ ${tag}
+                        </span>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        card.innerHTML = `
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; text-align: left;">
+                <span class="card-type" style="font-weight: bold; font-size: 0.8rem; opacity: 0.8;">${displayType}</span>
+                <span class="card-dept" style="font-weight: bold; font-size: 0.8rem; opacity: 0.8; background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius:4px;">Dép. ${alert.deptCode}</span>
+            </div>
+            
+            <div class="card-title" style="font-weight: bold; font-size: 0.95rem; margin-bottom: 10px; text-align: left; line-height: 1.3;">
+                ${alert.title}
+            </div>
+
+            ${tagsHtml}
+            
+            <div class="card-meta-block" style="font-size: 0.8rem; line-height: 1.4; margin-bottom: 12px; text-align: left;">
+                <div><strong>Type:</strong> ${typeInfo}</div>
+                <div><strong>Impact:</strong> ${impactInfo}</div>
+                <div><strong>Emplacement:</strong> ${emplacementInfo}</div>
+                <div><strong>Date Début:</strong> ${dateDebut}</div>
+                ${dateFin ? `<div><strong>Date Fin:</strong> ${dateFin}</div>` : ''}
+            </div>
+            
+            <div class="card-body" style="font-size: 0.8rem; line-height: 1.35; margin-bottom: 12px; text-align: left; padding: 0; width: 100%;">
+                <strong>Détail:</strong> <span style="white-space: pre-wrap;">${detailInfo}</span>
+            </div>
+            
+            <div class="card-footer-structure" style="font-size: 0.75rem; color: #bbb; text-align: left; margin-top: auto; padding-top: 8px;">
+                <div class="date-maj" style="margin-bottom: 4px;">
+                    <strong>Mise à jour alerte:</strong> ${formatDisplayDate(alert.updated) || 'Non spécifiée'}
+                </div>
+                ${coordsBlockHtml}
+                ${wmeActionHtml}
+            </div>
+        `;
+        alertsGrid.appendChild(card);
+    });
+}
+
+function renderTableView(alerts) {
+    if (!alertsGrid) return;
+    alertsGrid.className = "";
+    const container = document.createElement('div');
+    container.className = "tc-table-container";
+
+    let rowsHtml = '';
+    alerts.forEach(alert => {
+        let severityClass = 'row-warning';
+        if (alert.computedSeverity === 'danger') severityClass = 'row-danger';
+        else if (alert.computedSeverity === 'info') severityClass = 'row-info';
+        else if (alert.computedSeverity === 'blacklist') severityClass = 'row-blacklist';
+        
+        let actionsHtml = '<i>Pas de géoloc</i>';
+        if (alert.lat && alert.lon) {
+            const wmeProd = `https://waze.com/fr/editor?env=row&lat=${alert.lat}&lon=${alert.lon}&zoomLevel=19`;
+            const wmeBeta = `https://beta.waze.com/fr/editor?env=row&lat=${alert.lat}&lon=${alert.lon}&zoomLevel=19`;
+            actionsHtml = `
+                <div class="table-actions">
+                    <a href="${wmeProd}" target="_blank" class="btn-wme-xs wme-prod" title="Ouvrir Production">PRO</a>
+                    <a href="${wmeBeta}" target="_blank" class="btn-wme-xs wme-beta" title="Ouvrir Beta">BETA</a>
+                </div>
+            `;
+        }
+
+        const isBl = alert.computedSeverity === 'blacklist';
+        const displayCross = isBl ? '<span style="color:var(--text-muted); font-style:italic;">Masqué / Archivage de sécurité</span>' : alert.cross;
+
+        rowsHtml += `
+            <tr class="${severityClass}">
+                <td style="font-weight:bold; text-align:center;">73</td>
+                <td><strong>${isBl ? 'Obsolète/BL' : alert.computedCategory}</strong></td>
+                <td>
+                    <div style="font-weight:600; color:${isBl ? 'var(--text-muted)' : '#fff'};">${alert.title}</div>
+                    <div style="font-size:0.75rem; color:#aaa; max-width:40px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                        ${displayCross}
+                    </div>
+                </td>
+                <td style="font-size:0.75rem; white-space:nowrap;">${formatDisplayDate(alert.updated)}</td>
+                <td>${actionsHtml}</td>
+            </tr>
+        `;
+    });
+
+    container.innerHTML = `
+        <table class="tc-table">
+            <thead>
+                <tr>
+                    <th style="width:50px; text-align:center;">Dép</th>
+                    <th style="width:100px;">Nature</th>
+                    <th>Événement & Description</th>
+                    <th style="width:130px;">Début / Màj</th>
+                    <th style="width:110px;">Éditeur WME</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${rowsHtml}
+            </tbody>
+        </table>
+    `;
+    alertsGrid.appendChild(container);
+}
+
+function parseAlertDate(dateStr) {
+    if (!dateStr || dateStr.includes("non spécifiée") || dateStr.includes("Récemment")) return null;
+    
+    // Nettoyage des espaces multiples potentiels
+    const cleanStr = dateStr.replace(/\s+/g, ' ').trim();
+    
+    const isoTimestamp = Date.parse(cleanStr);
+    if (!isNaN(isoTimestamp)) return new Date(isoTimestamp);
+
+    // Capture des formats FR (JJ/MM/AAAA ou JJ/MM/AA)
+    const frMatch = cleanStr.match(/(\d{2})\/(\d{2})\/(\d{2,4})/);
+    if (frMatch) {
+        const day = parseInt(frMatch[1], 10);
+        const month = parseInt(frMatch[2], 10) - 1;
+        let year = parseInt(frMatch[3], 10);
+        if (year < 100) year += 2000; // Sécurité si l'année est passée sur 2 chiffres
+        
+        const timeMatch = cleanStr.match(/(\d{2}):(\d{2})/);
+        const hours = timeMatch ? parseInt(timeMatch[1], 10) : 0;
+        const minutes = timeMatch ? parseInt(timeMatch[2], 10) : 0;
+        return new Date(year, month, day, hours, minutes);
+    }
+    return null;
+}
+
+function extractEndDate(text) {
+    if (!text) return null;
+    const savoieMatch = text.match(/Fin\s*:\s*(\d{2})\/(\d{2})\/(\d{4})\s*(\d{2}):(\d{2})/);
+    if (savoieMatch) {
+        return new Date(parseInt(savoieMatch[3]), parseInt(savoieMatch[2]) - 1, parseInt(savoieMatch[1]), parseInt(savoieMatch[4]), parseInt(savoieMatch[5]));
+    }
+    const genericMatch = text.match(/(?:jusqu'au|fin|prévue le|au)\s*[:\s]*(\d{2})\/(\d{2})\/(\d{4})/i);
+    if (genericMatch) {
+        return new Date(parseInt(genericMatch[3]), parseInt(genericMatch[2]) - 1, parseInt(genericMatch[1]), 23, 59); 
+    }
+    return null;
+}
+
+function formatDisplayDate(dateStr) {
+    if (!dateStr || dateStr === "Récemment") return dateStr;
+    
+    const parsed = parseAlertDate(dateStr);
+    if (!parsed) return dateStr;
+
+    return parsed.toLocaleString('fr-FR', { 
+        day: '2-digit', 
+        month: '2-digit', 
+        year: 'numeric', 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: false 
+    });
+}
+
+function updateStats(totalCount, filteredAlerts) {
+    if (statTotal) statTotal.textContent = totalCount;
+    let countsSeverity = { danger: 0, warning: 0, info: 0, blacklist: 0 };
+    const countsDept = {};
+
+    filteredAlerts.forEach(a => {
+        if (countsSeverity[a.computedSeverity] !== undefined) countsSeverity[a.computedSeverity]++;
+        countsDept[a.deptCode] = (countsDept[a.deptCode] || 0) + 1;
+    });
+
+    if (statsBySeverity) {
+        statsBySeverity.innerHTML = `
+            <div class="severity-stat-badge" title="Bloquant Impératif">🔴 <strong>${countsSeverity.danger}</strong></div>
+            <div class="severity-stat-badge" title="À vérifier / Partiel">🟠 <strong>${countsSeverity.warning}</strong></div>
+            <div class="severity-stat-badge" title="Informatif / Mineur">🔘 <strong>${countsSeverity.info}</strong></div>
+            <div class="severity-stat-badge" title="Liste Noire / Obsolète">⚪ <strong>${countsSeverity.blacklist}</strong></div>
+        `;
+    }
+
+    if (statsByDept) {
+        statsByDept.innerHTML = '';
+        const sortedDepts = Object.entries(countsDept).sort((a, b) => b[1] - a[1]);
+        for (const [dept, count] of sortedDepts) {
+            const tag = document.createElement('span');
+            tag.className = 'dept-tag-stat';
+            tag.innerHTML = `📍 <strong>${dept}</strong> : ${count}`;
+            statsByDept.appendChild(tag);
         }
     }
-    return alerts;
-}
-
-// --- UTILS : Nettoyage et requêtes ---
-function cleanText(str) {
-    if (!str) return '';
-    return String(str)
-        .replace(/<br\s*\/?>/gi, '\n')
-        .replace(/<\/?p>/gi, '\n')
-        .replace(/<li>/gi, '• ')
-        .replace(/<\/li>/gi, '\n')
-        .replace(/<[^>]+>/g, '') 
-        .replace(/&nbsp;/g, ' ')
-        .replace(/&#39;/g, "'")
-        .replace(/&quot;/g, '"')
-        .replace(/&amp;/g, '&')
-        .replace(/ {2,}/g, ' ')
-        .replace(/\n\s*\n/g, '\n')
-        .trim();
-}
-
-function gmPostJson(url, body) {
-    const proxiedUrl = `${PROXY_URL}?url=${encodeURIComponent(url)}`;
-    return fetch(proxiedUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-    }).then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-    });
-}
-
-function gmGetJson(url) {
-    const proxiedUrl = `${PROXY_URL}?url=${encodeURIComponent(url)}`;
-    return fetch(proxiedUrl, {
-        method: 'GET'
-    }).then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-    });
 }
