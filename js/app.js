@@ -605,27 +605,22 @@ function renderTableView(alerts) {
 }
 
 function parseAlertDate(dateStr) {
-    if (!dateStr || dateStr.includes("non spécifiée") || dateStr.includes("Récemment")) return null;
-    
-    // Nettoyage des espaces multiples potentiels
-    const cleanStr = dateStr.replace(/\s+/g, ' ').trim();
-    
-    const isoTimestamp = Date.parse(cleanStr);
-    if (!isNaN(isoTimestamp)) return new Date(isoTimestamp);
+    if (!dateStr || dateStr === "Récemment" || dateStr.includes("non spécifiée")) return null;
 
-    // Capture des formats FR (JJ/MM/AAAA ou JJ/MM/AA)
-    const frMatch = cleanStr.match(/(\d{2})\/(\d{2})\/(\d{2,4})/);
-    if (frMatch) {
-        const day = parseInt(frMatch[1], 10);
-        const month = parseInt(frMatch[2], 10) - 1;
-        let year = parseInt(frMatch[3], 10);
-        if (year < 100) year += 2000; // Sécurité si l'année est passée sur 2 chiffres
+    // Regex pour capturer JJ, MM, AAAA, et optionnellement HH:MM
+    // On force la capture de chaque groupe pour éviter toute interprétation automatique
+    const match = dateStr.match(/(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}))?/);
+    
+    if (match) {
+        const day = parseInt(match[1], 10);
+        const month = parseInt(match[2], 10) - 1; // Les mois commencent à 0 en JS
+        const year = parseInt(match[3], 10);
+        const hours = match[4] ? parseInt(match[4], 10) : 0;
+        const minutes = match[5] ? parseInt(match[5], 10) : 0;
         
-        const timeMatch = cleanStr.match(/(\d{2}):(\d{2})/);
-        const hours = timeMatch ? parseInt(timeMatch[1], 10) : 0;
-        const minutes = timeMatch ? parseInt(timeMatch[2], 10) : 0;
         return new Date(year, month, day, hours, minutes);
     }
+    
     return null;
 }
 
