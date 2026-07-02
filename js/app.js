@@ -24,6 +24,7 @@ const syncStatus = document.getElementById('sync-status');
 const filterDept = document.getElementById('filter-dept');
 const filterType = document.getElementById('filter-type');
 const filterSeverity = document.getElementById('filter-severity');
+const filterHasDoc = document.getElementById('filter-has-doc'); 
 const filterShowBlacklist = document.getElementById('filter-show-blacklist'); 
 
 const filterCurrentOnly = document.getElementById('filter-current-only');
@@ -86,6 +87,7 @@ function setupEventListeners() {
     if (filterDept) filterDept.addEventListener('change', renderAlerts);
     if (filterType) filterType.addEventListener('change', renderAlerts);
     if (filterSeverity) filterSeverity.addEventListener('change', renderAlerts);
+    if (filterHasDoc) filterHasDoc.addEventListener('change', renderAlerts); 
     if (filterShowBlacklist) filterShowBlacklist.addEventListener('change', renderAlerts); 
     
     if (filterCurrentOnly) filterCurrentOnly.addEventListener('change', renderAlerts);
@@ -120,6 +122,7 @@ function resetAllFilters() {
     if (filterDept) filterDept.value = 'all';
     if (filterType) filterType.value = 'all';
     if (filterSeverity) filterSeverity.value = 'all';
+    if (filterHasDoc) filterHasDoc.checked = false;
     if (filterShowBlacklist) filterShowBlacklist.checked = false; 
     if (filterCurrentOnly) filterCurrentOnly.checked = false;
     if (filterDateStart) filterDateStart.value = '';
@@ -253,6 +256,7 @@ function renderAlerts() {
     const selectedDept = filterDept ? filterDept.value : 'all';
     const selectedType = filterType ? filterType.value : 'all';
     const selectedSeverity = filterSeverity ? filterSeverity.value : 'all';
+    const isHasDocChecked = filterHasDoc ? filterHasDoc.checked : false;
     const isShowBlacklistChecked = filterShowBlacklist ? filterShowBlacklist.checked : false;
 
     const currentOnly = filterCurrentOnly ? filterCurrentOnly.checked : false;
@@ -371,6 +375,10 @@ function renderAlerts() {
             if (endLogic === 'after_or_on' && compDate < target) return false;
         }
 
+        if (isHasDocChecked && (!alert.docs || alert.docs.length === 0)) {
+            return false; // Si coché ET pas de document -> on élimine l'alerte !
+        }
+
         return true;
     });
 
@@ -398,7 +406,6 @@ function renderAlerts() {
     updateStats(filtered.length, filtered);
 }
 
-// --- RENDU GRILLE STRUCTURÉE ---
 // --- RENDU GRILLE STRUCTURÉE ---
 function renderGridView(alerts) {
     alertsGrid.className = "alerts-grid";
