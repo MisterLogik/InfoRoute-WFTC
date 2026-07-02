@@ -29,7 +29,7 @@ async function fetchGeojsonData(deptCode, urls) {
                 const props = feature.properties || {};
                 const geom = feature.geometry || {};
                 
-                // Extraction intelligente des coordonnées géographiques (Points, Lignes ou Multi-Lignes)
+                // 1. Extraction des coordonnées géographiques
                 let lat = null, lon = null;
                 if (geom.type === 'Point' && Array.isArray(geom.coordinates)) {
                     lon = parseFloat(geom.coordinates[0]);
@@ -40,29 +40,77 @@ async function fetchGeojsonData(deptCode, urls) {
                     lat = parseFloat(firstPt[1]);
                 }
 
-                // Normalisation des champs textuels Turbolead / Standard
-                const axe = props.axe || props.route || props.Axe || props.route_libelle || '';
-                const commune = props.commune || props.ville || props.Commune || '';
-                const natureType = props.type || props.nature || props.gtype || props.libelleType || 'Alerte';
-                const description = props.description || props.texte || props.commentaire || props.Commentaire || '';
+                // 2. Récupération ou découpage intelligent de l'axe et de la commune
+                let axe = props.axe || props.route || props.Axe || props.route_libelle || '';
+                let commune = props.commune || props.ville || props.Commune || '';
                 
-                const titre = [natureType, axe, commune].filter(Boolean).join(' — ') || `Événement #${deptCode}-${index}`;
+                // Si Turbolead fournit un titre composite (ex: "RD 251 - THUSY - Info travaux")
+                if (props.titre && (!axe || !commune)) {
+                    const parts = props.titre.split(/\s*-\s*/);
+                    if (parts.length >= 2) {
+                        if (!axe) axe = parts[0].trim();
+                        if (!commune) commune = parts[1].trim();
+                    }
+                }
 
-                // Construction d'un bloc de description unifié
+                // 3. Déduction intelligente de la Nature et de l'Impact via analyse de texte
+                const description = props.description || props.texte || props.commentaire || props.Commentaire || '';
+                const scanZone = `${props.titre || ''} ${description}`.toLowerCase();
+                
+                let natureType = 'Alerte';
+                if (scanZone.includes('travaux') || scanZone.includes('chantier') || scanZone.includes('ouvrage d’art')) {
+                    natureType = 'Travaux';
+                } else if (scanZone.includes('ferme') || scanZone.includes('coupé') || scanZone.includes('barré')) {
+                    natureType = 'Fermeture';
+                } else if (scanZone.includes('accident') || scanZone.includes('collision')) {
+                    natureType = 'Accident';
+                } else if (scanZone.includes('manifestation') || scanZone.includes('sportive')) {
+                    natureType = 'Manifestation';
+                } else if (scanZone.includes('bouchon') || scanZone.includes('ralentissement')) {
+                    natureType = 'Bouchon';
+                }
+
+                let impact = 'Restriction';
+                if (scanZone.includes('24h / 24') && (scanZone.includes('fermé') || scanZone.includes('coupé'))) {
+                    impact = 'Route coupée 24h/24';
+                } else if (scanZone.includes('route fermée') || scanZone.includes('route coupée')) {
+                    impact = 'Route coupée';
+                } else if (scanZone.includes('alternat')) {
+                    impact = 'Alternat';
+                }
+
+                // 4. Reconstruction du Titre au format standardisé "Nature — Axe — Commune"
+                const titreUnifie = [natureType, axe, commune].filter(Boolean).join(' — ') || props.titre || `Événement #${deptCode}-${index}`;
+
+                // 5. Normalisation des dates (Gestion du format "JJ/MM/AA HH:MM" de Turbolead)
+                const dateDebRaw = props.date_evt_debut || props.date_deb || props.debut || props.Debut || '';
+                const dateFinRaw = props.date_evt_fin || props.date_fin || props.fin || props.Fin || '';
+
+                const formatYear = (str) => {
+                    if (!str) return '';
+                    // Transforme "JJ/MM/AA" en "JJ/MM/20AA" si l'année n'a que 2 chiffres
+                    return str.replace(/(\d{2})\/(\d{2})\/(\d{2})(\s+|\b)/g, '$1/$2/20$3$4').trim();
+                };
+
+                const dateDebut = formatYear(dateDebRaw) || 'Non spécifiée';
+                const dateFin = formatYear(dateFinRaw);
+
+                // 6. Assemblage du bloc textuel attendu par app.js
                 let chunks = [];
                 chunks.push(`Type : ${natureType}`);
+                chunks.push(`Impact : ${impact}`);
                 if (props.location || props.lieu) chunks.push(`Lieu : ${props.location || props.lieu}`);
-                if (props.date_deb || props.debut || props.Debut) chunks.push(`Début : ${props.date_deb || props.debut || props.Debut}`);
-                if (props.date_fin || props.fin || props.Fin) chunks.push(`Fin : ${props.date_fin || props.fin || props.Fin}`);
+                chunks.push(`Début : ${dateDebut}`);
+                if (dateFin) chunks.push(`Fin : ${dateFin}`);
                 if (description) chunks.push(`\nDétails :\n${cleanText(description)}`);
 
                 alerts.push({
-                    id: `${deptCode}-${props.id || props.uid || props.idtInfo || index}`,
+                    id: `${deptCode}-${props.id || props.uid || props.idtInfo || props.id_repere || index}`,
                     type: natureType,
-                    title: titre,
+                    title: titreUnifie,
                     cross: chunks.join('\n').trim(),
-                    updated: props.date_deb || props.pubDate || props.date_maj || "Récemment",
-                    severity: 'info', // La sévérité (Rouge/Orange/Gris) sera calculée à la volée par la logique d'app.js
+                    updated: dateDebut !== 'Non spécifiée' ? dateDebut : "Récemment",
+                    severity: 'info', // Géré dynamiquement à la volée
                     lat: isNaN(lat) ? null : lat,
                     lon: isNaN(lon) ? null : lon
                 });
