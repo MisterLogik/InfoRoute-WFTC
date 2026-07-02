@@ -643,9 +643,19 @@ function extractEndDate(text) {
 }
 
 function formatDisplayDate(dateStr) {
+    if (!dateStr || dateStr === "Récemment") return dateStr;
+    
     const parsed = parseAlertDate(dateStr);
     if (!parsed) return dateStr;
-    return parsed.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+    return parsed.toLocaleString('fr-FR', { 
+        day: '2-digit', 
+        month: '2-digit', 
+        year: 'numeric', 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: false 
+    });
 }
 
 function updateStats(totalCount, filteredAlerts) {
