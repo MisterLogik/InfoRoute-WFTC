@@ -546,6 +546,7 @@ function renderGridView(alerts) {
                     <strong>Mise à jour alerte:</strong> ${formatDisplayDate(alert.updated) || 'Non spécifiée'}
                 </div>
                 ${coordsBlockHtml}
+                ${docsBlockHtml} <!-- Ajout des boutons de documents ici -->
                 ${wmeActionHtml}
             </div>
         `;
