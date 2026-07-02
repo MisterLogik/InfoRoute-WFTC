@@ -31,9 +31,16 @@ export const DEPARTEMENTS_CONFIG = {
     "29": { name: "Finistère", format: "geojson-get", urls: ["https://www.inforoute29.fr/mod_turbolead/mod/inforoute/index.php?action=374"] },
     "30": { name: "Gard", format: "geojson-get", urls: ["https://www.inforoute30.fr/mod_turbolead/mod/inforoute/index.php?action=374"] },
     "31": { name: "Haute-Garonne", format: "geojson-get", urls: ["https://www.inforoute31.fr/mod_turbolead/mod/inforoute/index.php?action=374"] },
-    "34": { name: "Hérault", format: "geojson-get", urls: ["https://inforoute.herault.fr/mod_turbolead/mod/inforoute/index.php?action=367&layer=layer-repere_danger"] },
+    "34": { 
+        name: "Hérault", 
+        format: "geojson-get", 
+        urls: [
+            "https://inforoute.herault.fr/mod_turbolead/mod/inforoute/index.php?action=367&layer=layer-repere_danger",
+            "https://inforoute.herault.fr/mod_turbolead/mod/inforoute/index.php?action=367&layer=layer-closed_road"
+        ] 
+    },
     "36": { name: "Indre", format: "geojson-get", urls: ["https://www.inforoute36.fr/mod_turbolead/mod/inforoute/index.php?action=374"] },
-    "38": { 
+    "38": {
         name: "Isère", 
         format: "geojson-get", 
         urls: [
