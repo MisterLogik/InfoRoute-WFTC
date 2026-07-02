@@ -97,25 +97,11 @@ async function fetchGeojsonData(deptCode, urls) {
                 // 5. Normalisation des dates (Gestion du format "JJ/MM/AA HH:MM" de Turbolead)
                 const dateDebRaw = props.date_evt_debut || props.date_deb || props.debut || props.Debut || '';
                 const dateFinRaw = props.date_evt_fin || props.date_fin || props.fin || props.Fin || '';
-                console.log(`Debug Dept ${deptCode} - Date brute lue: "${dateDebRaw}"`); // <--- AJOUTE CECI
 
                 const formatYear = (str) => {
                     if (!str) return '';
-                    try {
-                        // Force la conversion en chaîne de caractères pour éviter les crashs
-                        const stringDate = String(str).trim();
-                        
-                        // Si c'est déjà au format 4 chiffres (JJ/MM/AAAA), on ne touche à rien
-                        if (/\d{2}\/\d{2}\/\d{4}/.test(stringDate)) {
-                            return stringDate;
-                        }
-                
-                        // Si c'est au format 2 chiffres (JJ/MM/AA), on ajoute 20
-                        return stringDate.replace(/^(\d{2})\/(\d{2})\/(\d{2})/, '$1/$2/20$3');
-                    } catch (e) {
-                        console.error("Erreur critique lors du formatage de la date :", e);
-                        return ''; // En cas d'erreur, on renvoie vide plutôt que de faire crasher le site
-                    }
+                    // Transforme "JJ/MM/AA" en "JJ/MM/20AA" si l'année n'a que 2 chiffres
+                    return str.replace(/(\d{2})\/(\d{2})\/(\d{2})(\s+|\b)/g, '$1/$2/20$3$4').trim();
                 };
 
                 const dateDebut = formatYear(dateDebRaw) || 'Non spécifiée';
