@@ -471,12 +471,26 @@ function renderGridView(alerts) {
 
         const detectedTags = [];
         const textToScan = `${alert.title} ${alert.cross || ''}`.toLowerCase();
-
+        
         if (textToScan.includes('accident')) detectedTags.push('Accident');
         if (textToScan.includes('ferm')) detectedTags.push('Fermeture');
         if (textToScan.includes('cloture') || textToScan.includes('clôture')) detectedTags.push('Clôture');
         if (textToScan.includes('travaux') || textToScan.includes('chantier')) detectedTags.push('Travaux');
         if (textToScan.includes('alternat')) detectedTags.push('Alternat');
+        
+        // BADGE INCENDIE
+        if (textToScan.includes('incendie') || textToScan.includes('feu de') || textToScan.includes('feux de') || textToScan.includes('fumée')) {
+            detectedTags.push('🔥 Incendie');
+        }
+        
+        // BADGE MÉTÉO UNIQUE (Regroupe tous les critères climatiques)
+        if (
+            textToScan.includes('neige') || textToScan.includes('verglas') || textToScan.includes('tempête') || 
+            textToScan.includes('vent') || textToScan.includes('inondation') || textToScan.includes('crue') ||
+            textToScan.includes('météo') || textToScan.includes('viabilité')
+        ) {
+            detectedTags.push('❄️ Météo / Viabilité');
+        }
 
         let tagsHtml = '';
         if (detectedTags.length > 0) {
