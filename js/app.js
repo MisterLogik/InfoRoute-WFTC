@@ -607,20 +607,21 @@ function renderTableView(alerts) {
 function parseAlertDate(dateStr) {
     if (!dateStr || dateStr === "Récemment" || dateStr.includes("non spécifiée")) return null;
 
-    const cleanStr = dateStr.replace(/[.-]/g, '/');
-    const match = cleanStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:\s+(\d{1,2}):(\d{2}))?/);
+    // Regex qui attend explicitement JJ/MM/AAAA
+    const match = dateStr.match(/(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}))?/);
     
     if (match) {
         const day = parseInt(match[1], 10);
-        const month = parseInt(match[2], 10) - 1;
-        let year = parseInt(match[3], 10);
-        
-        if (year < 100) year += 2000;
-        
+        const month = parseInt(match[2], 10) - 1; 
+        const year = parseInt(match[3], 10);
         const hours = match[4] ? parseInt(match[4], 10) : 0;
         const minutes = match[5] ? parseInt(match[5], 10) : 0;
         
-        return new Date(year, month, day, hours, minutes);
+        // On crée la date avec les paramètres explicites
+        const d = new Date(year, month, day, hours, minutes);
+        
+        // Sécurité : Si l'année est absurde ou la date invalide
+        return isNaN(d.getTime()) ? null : d;
     }
     
     return null;
