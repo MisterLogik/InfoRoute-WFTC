@@ -64,6 +64,18 @@ async function fetchGeojsonData(deptCode, urls) {
                     natureType = 'Fermeture';
                 } else if (scanZone.includes('accident') || scanZone.includes('collision')) {
                     natureType = 'Accident';
+                
+                } else if (
+                    scanZone.includes('neige') || scanZone.includes('verglas') || scanZone.includes('chasseneige') || 
+                    scanZone.includes('hivernal') || scanZone.includes('tempête') || scanZone.includes('vent ') || 
+                    scanZone.includes('rafale') || scanZone.includes('inondation') || scanZone.includes('crue') || 
+                    scanZone.includes('viabilité') || scanZone.includes('météo')
+                ) {
+                    natureType = 'Météo';
+                
+                } else if (scanZone.includes('incendie') || scanZone.includes('feu de') || scanZone.includes('feux de') || scanZone.includes('fumée')) {
+                    natureType = 'Incendie';
+                
                 } else if (scanZone.includes('manifestation') || scanZone.includes('sportive')) {
                     natureType = 'Manifestation';
                 } else if (scanZone.includes('bouchon') || scanZone.includes('ralentissement')) {
