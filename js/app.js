@@ -607,14 +607,16 @@ function renderTableView(alerts) {
 function parseAlertDate(dateStr) {
     if (!dateStr || dateStr === "Récemment" || dateStr.includes("non spécifiée")) return null;
 
-    // Regex pour capturer JJ, MM, AAAA, et optionnellement HH:MM
-    // On force la capture de chaque groupe pour éviter toute interprétation automatique
-    const match = dateStr.match(/(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}))?/);
+    const cleanStr = dateStr.replace(/[.-]/g, '/');
+    const match = cleanStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:\s+(\d{1,2}):(\d{2}))?/);
     
     if (match) {
         const day = parseInt(match[1], 10);
-        const month = parseInt(match[2], 10) - 1; // Les mois commencent à 0 en JS
-        const year = parseInt(match[3], 10);
+        const month = parseInt(match[2], 10) - 1;
+        let year = parseInt(match[3], 10);
+        
+        if (year < 100) year += 2000;
+        
         const hours = match[4] ? parseInt(match[4], 10) : 0;
         const minutes = match[5] ? parseInt(match[5], 10) : 0;
         
@@ -626,13 +628,11 @@ function parseAlertDate(dateStr) {
 
 function extractEndDate(text) {
     if (!text) return null;
-    const savoieMatch = text.match(/Fin\s*:\s*(\d{2})\/(\d{2})\/(\d{4})\s*(\d{2}):(\d{2})/);
-    if (savoieMatch) {
-        return new Date(parseInt(savoieMatch[3]), parseInt(savoieMatch[2]) - 1, parseInt(savoieMatch[1]), parseInt(savoieMatch[4]), parseInt(savoieMatch[5]));
-    }
-    const genericMatch = text.match(/(?:jusqu'au|fin|prévue le|au)\s*[:\s]*(\d{2})\/(\d{2})\/(\d{4})/i);
-    if (genericMatch) {
-        return new Date(parseInt(genericMatch[3]), parseInt(genericMatch[2]) - 1, parseInt(genericMatch[1]), 23, 59); 
+    const match = text.match(/(?:fin|jusqu'au|au)\s*[:\s]*(\d{1,2})\/(\d{1,2})\/(\d{2,4})/i);
+    if (match) {
+        let year = parseInt(match[3], 10);
+        if (year < 100) year += 2000;
+        return new Date(year, parseInt(match[2], 10) - 1, parseInt(match[1], 10), 23, 59);
     }
     return null;
 }
