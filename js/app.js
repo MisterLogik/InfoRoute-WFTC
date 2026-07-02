@@ -449,7 +449,20 @@ function renderGridView(alerts) {
         }
 
         let wmeActionHtml = '';
-        let coordsBlockHtml = ''; // Initialisé vide si pas de géoloc
+        let coordsBlockHtml = ''; 
+        let docsBlockHtml = ''; 
+        
+        if (alert.docs && alert.docs.length > 0) {
+            docsBlockHtml = `
+                <div class="card-docs" style="margin-top: 10px; display: flex; flex-direction: column; gap: 5px;">
+                    ${alert.docs.map(doc => `
+                        <a href="${doc.href}" target="_blank" class="btn-doc" style="background-color: #222; color: #fff; padding: 6px 10px; border-radius: 6px; font-size: 0.8rem; text-decoration: none; display: flex; align-items: center; gap: 8px; border: 1px solid #444;">
+                            📎 <span>${doc.name || 'Document joint'}</span>
+                        </a>
+                    `).join('')}
+                </div>
+            `;
+        }
         
         if (alert.lat && alert.lon) {
             const wmeProd = `https://waze.com/fr/editor?env=row&lat=${alert.lat}&lon=${alert.lon}&zoomLevel=19`;
@@ -461,7 +474,6 @@ function renderGridView(alerts) {
                 </div>
             `;
             
-            // Format épuré : texte gris, sans fioritures
             coordsBlockHtml = `
                 <div class="date-coords" style="margin-bottom: 4px; color: #aaa;">
                     <strong>Coordonnées :</strong> ${Number(alert.lat).toFixed(5)}, ${Number(alert.lon).toFixed(5)}
