@@ -24,7 +24,7 @@ const syncStatus = document.getElementById('sync-status');
 const filterDept = document.getElementById('filter-dept');
 const filterType = document.getElementById('filter-type');
 const filterSeverity = document.getElementById('filter-severity');
-const filterHasDoc = document.getElementById('filter-has-doc'); 
+const filterHasDoc = document.getElementById('filter-has-doc'); // <-- FIX : Ajout du sélecteur DOM
 const filterShowBlacklist = document.getElementById('filter-show-blacklist'); 
 
 const filterCurrentOnly = document.getElementById('filter-current-only');
@@ -87,7 +87,7 @@ function setupEventListeners() {
     if (filterDept) filterDept.addEventListener('change', renderAlerts);
     if (filterType) filterType.addEventListener('change', renderAlerts);
     if (filterSeverity) filterSeverity.addEventListener('change', renderAlerts);
-    if (filterHasDoc) filterHasDoc.addEventListener('change', renderAlerts); 
+    if (filterHasDoc) filterHasDoc.addEventListener('change', renderAlerts); // <-- FIX : Ajout de l'écouteur d'événement
     if (filterShowBlacklist) filterShowBlacklist.addEventListener('change', renderAlerts); 
     
     if (filterCurrentOnly) filterCurrentOnly.addEventListener('change', renderAlerts);
@@ -122,7 +122,7 @@ function resetAllFilters() {
     if (filterDept) filterDept.value = 'all';
     if (filterType) filterType.value = 'all';
     if (filterSeverity) filterSeverity.value = 'all';
-    if (filterHasDoc) filterHasDoc.checked = false;
+    if (filterHasDoc) filterHasDoc.checked = false; // <-- FIX : Réinitialisation de la coche document
     if (filterShowBlacklist) filterShowBlacklist.checked = false; 
     if (filterCurrentOnly) filterCurrentOnly.checked = false;
     if (filterDateStart) filterDateStart.value = '';
@@ -256,8 +256,8 @@ function renderAlerts() {
     const selectedDept = filterDept ? filterDept.value : 'all';
     const selectedType = filterType ? filterType.value : 'all';
     const selectedSeverity = filterSeverity ? filterSeverity.value : 'all';
-    const isHasDocChecked = filterHasDoc ? filterHasDoc.checked : false;
     const isShowBlacklistChecked = filterShowBlacklist ? filterShowBlacklist.checked : false;
+    const isHasDocChecked = filterHasDoc ? filterHasDoc.checked : false; // <-- FIX : Récupération du booléen coché/décoché
 
     const currentOnly = filterCurrentOnly ? filterCurrentOnly.checked : false;
     const startTargetStr = filterDateStart ? filterDateStart.value : '';
@@ -299,21 +299,18 @@ function renderAlerts() {
         let severity = 'info';
         
         if (isClosure) {
-            // --- NOUVELLE LOGIQUE DE PRIORITÉ ---
-            // On vérifie si l'impact indique une fermeture absolue ou si le texte contient un mot de coupure forte
-            // Si la route est coupée/interrompue, le ROUGE (danger) est PRIORITAIRE, même s'il y a un alternat en journée.
             const hasAbsoluteClosure = combinedText.includes('interrompue') || combinedText.includes('coupé') || combinedText.includes('coupée') || combinedText.includes('fermé') || combinedText.includes('fermée');
             
             if (hasAbsoluteClosure) {
-                severity = 'danger'; // Priorité maximale : Rouge d'office
+                severity = 'danger';
             } else if (combinedText.includes('alternat')) {
-                severity = 'warning'; // Orange si c'est une fermeture partielle / alternat uniquement
+                severity = 'warning';
             } else {
-                severity = 'danger'; // Par défaut pour les autres types de fermeture
+                severity = 'danger';
             }
             
         } else {
-            // 2. SINON : On vérifie la blacklist (seulement si ce n'est pas une fermeture)
+            // 2. SINON : On vérifie la blacklist
             const isBlacklisted = BLACKLIST_KEYWORDS.some(kw => 
                 titleLower.includes(kw.toLowerCase()) || detailLower.includes(kw.toLowerCase())
             );
@@ -375,8 +372,9 @@ function renderAlerts() {
             if (endLogic === 'after_or_on' && compDate < target) return false;
         }
 
+        // 3. Imbrication finale du filtre de documents
         if (isHasDocChecked && (!alert.docs || alert.docs.length === 0)) {
-            return false; // Si coché ET pas de document -> on élimine l'alerte !
+            return false;
         }
 
         return true;
@@ -457,8 +455,8 @@ function renderGridView(alerts) {
 
         let wmeActionHtml = '';
         let coordsBlockHtml = ''; 
-        let docsBlockHtml = ''; 
-        
+        let docsBlockHtml = '';
+
         if (alert.docs && alert.docs.length > 0) {
             docsBlockHtml = `
                 <div class="card-docs" style="margin-top: 10px; display: flex; flex-direction: column; gap: 5px;">
@@ -496,13 +494,9 @@ function renderGridView(alerts) {
         if (textToScan.includes('cloture') || textToScan.includes('clôture')) detectedTags.push('Clôture');
         if (textToScan.includes('travaux') || textToScan.includes('chantier')) detectedTags.push('Travaux');
         if (textToScan.includes('alternat')) detectedTags.push('Alternat');
-        
-        // BADGE INCENDIE
         if (textToScan.includes('incendie') || textToScan.includes('feu de') || textToScan.includes('feux de') || textToScan.includes('fumée')) {
             detectedTags.push('🔥 Incendie');
         }
-        
-        // BADGE MÉTÉO UNIQUE (Regroupe tous les critères climatiques)
         if (
             textToScan.includes('neige') || textToScan.includes('verglas') || textToScan.includes('tempête') || 
             textToScan.includes('vent') || textToScan.includes('inondation') || textToScan.includes('crue') ||
@@ -553,7 +547,7 @@ function renderGridView(alerts) {
                     <strong>Mise à jour alerte:</strong> ${formatDisplayDate(alert.updated) || 'Non spécifiée'}
                 </div>
                 ${coordsBlockHtml}
-                ${docsBlockHtml} <!-- Ajout des boutons de documents ici -->
+                ${docsBlockHtml}
                 ${wmeActionHtml}
             </div>
         `;
@@ -591,7 +585,7 @@ function renderTableView(alerts) {
 
         rowsHtml += `
             <tr class="${severityClass}">
-                <td style="font-weight:bold; text-align:center;">73</td>
+                <td style="font-weight:bold; text-align:center;">${alert.deptCode}</td>
                 <td><strong>${isBl ? 'Obsolète/BL' : alert.computedCategory}</strong></td>
                 <td>
                     <div style="font-weight:600; color:${isBl ? 'var(--text-muted)' : '#fff'};">${alert.title}</div>
@@ -629,12 +623,13 @@ function parseAlertDate(dateStr) {
     
     const cleanStr = dateStr.replace(/\s+/g, ' ').trim();
     
+    // FIX : Analyse du format FR (JJ/MM/AAAA) PRIORITAIRE pour contrer le parse US automatique
     const frMatch = cleanStr.match(/(\d{2})\/(\d{2})\/(\d{2,4})/);
     if (frMatch) {
         const day = parseInt(frMatch[1], 10);
         const month = parseInt(frMatch[2], 10) - 1;
         let year = parseInt(frMatch[3], 10);
-        if (year < 100) year += 2000; // Sécurité si l'année est passée sur 2 chiffres
+        if (year < 100) year += 2000; 
         
         const timeMatch = cleanStr.match(/(\d{2}):(\d{2})/);
         const hours = timeMatch ? parseInt(timeMatch[1], 10) : 0;
@@ -642,7 +637,6 @@ function parseAlertDate(dateStr) {
         return new Date(year, month, day, hours, minutes);
     }
 
-    // Si ce n'est pas un format FR, on tente le parse natif (pour les dates ISO de Savoie par exemple)
     const isoTimestamp = Date.parse(cleanStr);
     if (!isNaN(isoTimestamp)) return new Date(isoTimestamp);
 
