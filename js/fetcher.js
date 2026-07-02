@@ -97,6 +97,7 @@ async function fetchGeojsonData(deptCode, urls) {
                 // 5. Normalisation des dates (Gestion du format "JJ/MM/AA HH:MM" de Turbolead)
                 const dateDebRaw = props.date_evt_debut || props.date_deb || props.debut || props.Debut || '';
                 const dateFinRaw = props.date_evt_fin || props.date_fin || props.fin || props.Fin || '';
+                console.log(`Debug Dept ${deptCode} - Date brute lue: "${dateDebRaw}"`); // <--- AJOUTE CECI
 
                 const formatYear = (str) => {
                     if (!str) return '';
