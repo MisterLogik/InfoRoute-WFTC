@@ -288,7 +288,7 @@ function renderAlerts() {
         }
         alert.computedCategory = calculatedType;
 
-        const closureKeywords = ['coupé', 'coupee', 'coupée', 'coupés', 'coupées', 'barré', 'barrée', 'barrés', 'barrées', 'fermé', 'fermée', 'fermés', 'fermées', 'fermeture', 'interrompue'];
+        const closureKeywords = ['coupé', 'coupee', 'coupée', 'coupés', 'coupées', 'barré', 'barrée', 'barrés', 'barrées', 'fermé', 'fermée', 'fermés', 'fermées', 'fermeture', 'interrompue', 'Circulation interdite'];
 
         const detailLower = (alert.cross || "").toLowerCase();
         const combinedText = titleLower + " " + detailLower;
