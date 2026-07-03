@@ -318,26 +318,34 @@ function renderAlerts() {
         alert.computedCategory = calculatedType;
 
         // --- 2. DÉFINITION DE LA SÉVÉRITÉ (HIÉRARCHIE DE GRAVITÉ) ---
-        let severity = 'info'; // Base : Information
+        let severity = 'info'; // Par défaut : Gris (Mineur / Alternat)
 
-        // Mots-clés pour la détection de la sévérité Fermeture
-        const closureKeywords = ['coupé', 'coupee', 'coupée', 'coupés', 'coupées', 'barré', 'barrée', 'barrés', 'barrées', 'fermé', 'fermée', 'fermés', 'fermées', 'fermeture', 'interrompue', 'circulation interdite'];
-        const isClosure = closureKeywords.some(kw => combinedText.includes(kw));
-
-        // Priorité 1 : Gravité Rouge/Orange si impact sur la circulation (Fermeture ou Alternat détecté)
-        if (alert.computedCategory === 'Fermeture' || isClosure) {
-            const hasAbsoluteClosure = combinedText.includes('interrompue') || combinedText.includes('coupé') || combinedText.includes('coupée') || combinedText.includes('fermé') || combinedText.includes('fermée') || combinedText.includes('interdite');
+        if (calculatedType === 'Fermeture') {
+            // On vérifie s'il y a une ambiguïté (présence simultanée d'un mot-clé d'alternat)
+            const hasAlternatConflict = combinedText.includes('alternat') || 
+                                        combinedText.includes('restriction') || 
+                                        combinedText.includes('voie impactée') || 
+                                        combinedText.includes('circulation alternée');
             
-            if (hasAbsoluteClosure) {
-                severity = 'danger'; // 🔴 Fermeture totale
-            } else if (combinedText.includes('alternat')) {
-                severity = 'warning'; // 🟠 Passage en alternat
+            if (hasAlternatConflict) {
+                severity = 'warning'; // 🟠 Orange : Fermeture à vérifier (Conflit Fermeture + Alternat)
             } else {
-                severity = 'danger';
+                severity = 'danger';  // 🔴 Rouge : Bloquant Impératif (Fermeture claire)
             }
-        } 
-        else if (alert.computedCategory === 'Alternat') {
-            severity = 'warning'; // 🟠 Alternat / Restriction seule
+        } else if (calculatedType === 'Alternat') {
+            severity = 'info';        // ⚪ Gris : Mineur / Alternat uniquement
+        } else {
+            // Gestion de la blacklist pour les alertes informatives restantes
+            const isBlacklisted = BLACKLIST_KEYWORDS.some(kw => 
+                titleLower.includes(kw.toLowerCase()) || detailLower.includes(kw.toLowerCase())
+            );
+            
+            if (isBlacklisted || (alertStartDate && alertStartDate < oneYearAgo)) {
+                severity = 'blacklist'; // ⚪ Masqué / Obsolète
+            }
+        }
+        alert.computedSeverity = severity;
+        
         } 
         // Priorité 2 : Si pas d'impact majeur, validation des critères d'obsolescence / Blacklist
         else {
