@@ -265,7 +265,7 @@ function renderAlerts() {
 
     const now = new Date();
     const oneYearAgo = new Date();
-    oneYearAgo.setFullYear(now.getFullYear() - 1); 
+    oneYearAgo.setFullYear(now.getFullYear() - 2); 
 
     // 1. Filtrage général (conserve la blacklist pour les stats globales)
     let filtered = window.ALL_ALERTS.filter(alert => {
