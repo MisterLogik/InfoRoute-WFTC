@@ -88,7 +88,7 @@ export const DEPARTEMENTS_CONFIG = {
 export const BLACKLIST_KEYWORDS = [
     "Station de Ski -", 
     "Col d", 
-    "Tunnel d", 
+    //"Tunnel d", <-- Détecte des fermetures non désirées
     "Paravalanche",
     "CERD d", 
     "P+R", 
