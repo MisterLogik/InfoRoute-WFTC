@@ -264,8 +264,10 @@ function renderAlerts() {
     const endLogic = filterDateEndLogic ? filterDateEndLogic.value : 'before_or_on';
 
     const now = new Date();
-    const oneYearAgo = new Date();
-    oneYearAgo.setFullYear(now.getFullYear() - 1); 
+    //const oneYearAgo = new Date();
+    //oneYearAgo.setFullYear(now.getFullYear() - 1); 
+    const oneYearAgo = new Date(now.getFullYear() - 1, 0, 1, 0, 0, 0, 0);
+    
 
     // 1. Filtrage général (conserve la blacklist pour les stats globales)
     let filtered = window.ALL_ALERTS.filter(alert => {
