@@ -24,7 +24,7 @@ const syncStatus = document.getElementById('sync-status');
 const filterDept = document.getElementById('filter-dept');
 const filterType = document.getElementById('filter-type');
 const filterSeverity = document.getElementById('filter-severity');
-const filterHasDoc = document.getElementById('filter-has-doc'); // <-- FIX : Ajout du sélecteur DOM
+const filterHasDoc = document.getElementById('filter-has-doc'); 
 const filterShowBlacklist = document.getElementById('filter-show-blacklist'); 
 
 const filterCurrentOnly = document.getElementById('filter-current-only');
@@ -51,13 +51,11 @@ function initFilters() {
     if (filterDept) {
         filterDept.innerHTML = '';
         
-        // Ajout de l'option universelle manquante pour tout afficher d'un coup
         const optionAll = document.createElement('option');
         optionAll.value = 'all';
         optionAll.textContent = "📍 Tous les départements";
         filterDept.appendChild(optionAll);
 
-        // Tri des codes de départements pour un affichage propre dans l'ordre (01, 04, 09, etc.)
         const sortedCodes = Object.keys(DEPARTEMENTS_CONFIG).sort();
         for (const code of sortedCodes) {
             const info = DEPARTEMENTS_CONFIG[code];
@@ -87,7 +85,7 @@ function setupEventListeners() {
     if (filterDept) filterDept.addEventListener('change', renderAlerts);
     if (filterType) filterType.addEventListener('change', renderAlerts);
     if (filterSeverity) filterSeverity.addEventListener('change', renderAlerts);
-    if (filterHasDoc) filterHasDoc.addEventListener('change', renderAlerts); // <-- FIX : Ajout de l'écouteur d'événement
+    if (filterHasDoc) filterHasDoc.addEventListener('change', renderAlerts); 
     if (filterShowBlacklist) filterShowBlacklist.addEventListener('change', renderAlerts); 
     
     if (filterCurrentOnly) filterCurrentOnly.addEventListener('change', renderAlerts);
@@ -122,7 +120,7 @@ function resetAllFilters() {
     if (filterDept) filterDept.value = 'all';
     if (filterType) filterType.value = 'all';
     if (filterSeverity) filterSeverity.value = 'all';
-    if (filterHasDoc) filterHasDoc.checked = false; // <-- FIX : Réinitialisation de la coche document
+    if (filterHasDoc) filterHasDoc.checked = false; 
     if (filterShowBlacklist) filterShowBlacklist.checked = false; 
     if (filterCurrentOnly) filterCurrentOnly.checked = false;
     if (filterDateStart) filterDateStart.value = '';
@@ -257,24 +255,6 @@ function renderAlerts() {
     const selectedType = filterType ? filterType.value : 'all';
     const selectedSeverity = filterSeverity ? filterSeverity.value : 'all';
     const isShowBlacklistChecked = filterShowBlacklist ? filterShowBlacklist.checked : false;
-    const isHasDocChecked = filterHasDoc ? filterHasDoc.checked : false; // <-- Récupération du booléen coché/décoché
-
-    const currentOnly = filterCurrentOnly ? filterCurrentOnly.checked : false;
-    const startTargetStr = filterDateStart ? filterDateStart.value : '';
-    const startLogic = filterDateStartLogic ? filterDateStartLogic.value : 'after_or_on';
-    const endTargetStr = filterDateEnd ? filterDateEnd.value : '';
-    const endLogic = filterDateEndLogic ? filterDateEndLogic.value : 'before_or_on';
-
-    const now = new Date();
-    const oneYearAgo = new Date();
-    oneYearAgo.setFullYear(now.getFullYear() - 1); 
-
-    function renderAlerts() {
-    const searchQuery = searchBar ? searchBar.value.toLowerCase().trim() : '';
-    const selectedDept = filterDept ? filterDept.value : 'all';
-    const selectedType = filterType ? filterType.value : 'all';
-    const selectedSeverity = filterSeverity ? filterSeverity.value : 'all';
-    const isShowBlacklistChecked = filterShowBlacklist ? filterShowBlacklist.checked : false;
     const isHasDocChecked = filterHasDoc ? filterHasDoc.checked : false;
 
     const currentOnly = filterCurrentOnly ? filterCurrentOnly.checked : false;
@@ -287,6 +267,7 @@ function renderAlerts() {
     const oneYearAgo = new Date();
     oneYearAgo.setFullYear(now.getFullYear() - 1); 
 
+    // 1. Filtrage général (conserve la blacklist pour les stats globales)
     let filtered = window.ALL_ALERTS.filter(alert => {
         const titleLower = alert.title.toLowerCase();
         const crossLower = alert.cross ? alert.cross.toLowerCase() : '';
@@ -300,10 +281,9 @@ function renderAlerts() {
         const detailLower = (alert.cross || "").toLowerCase();
         const combinedText = titleLower + " " + detailLower;
 
-        // --- 1. DÉFINITION DE LA CATÉGORIE (HIÉRARCHIE D'IMPACT STRICTE) ---
+        // --- DÉFINITION DE LA CATÉGORIE ---
         let calculatedType = alert.type;
         
-        // Mots-clés indiquant une fermeture claire et absolue
         const hasClosureKeywords = combinedText.includes('circulation interdite') || 
                                    combinedText.includes('interdite') || 
                                    combinedText.includes('coupé') || 
@@ -314,62 +294,50 @@ function renderAlerts() {
                                    combinedText.includes('barré') || 
                                    combinedText.includes('barrée');
 
-        // Mots-clés indiquant une restriction ou circulation partielle (Alternat)
         const hasAlternatKeywords = combinedText.includes('alternat') || 
                                     combinedText.includes('restriction') || 
-                                    computedText.includes('voie impactée') || 
+                                    combinedText.includes('voie impactée') || 
                                     combinedText.includes('circulation alternée');
 
-        // Priorité 1 : Si un seul mot-clé de fermeture absolue est présent -> FERMETURE directe
         if (hasClosureKeywords) {
             calculatedType = 'Fermeture';
-        } 
-        // Priorité 2 : Si pas de fermeture mais présence de restriction/alternat -> ALTERNAT
-        else if (hasAlternatKeywords) {
+        } else if (hasAlternatKeywords) {
             calculatedType = 'Alternat';
-        } 
-        // Priorité 3 : Valeur par défaut ou déduction basée sur le type de l'alerte initiale
-        else if (alert.type.toLowerCase().includes('travaux') || alert.type.toLowerCase().includes('chantier')) {
-            calculatedType = 'Fermeture'; // Par défaut si travaux sans précision
+        } else if (alert.type.toLowerCase().includes('travaux') || alert.type.toLowerCase().includes('chantier')) {
+            calculatedType = 'Fermeture';
         }
 
         alert.computedCategory = calculatedType;
 
-        // --- 2. DÉFINITION DE LA SÉVÉRITÉ (HIÉRARCHIE Rouge / Orange / Gris / Blacklist) ---
-        let severity = 'info'; // Par défaut : Gris (Mineur / Alternat)
+        // --- DÉFINITION DE LA SÉVÉRITÉ ---
+        let severity = 'info'; 
 
         if (calculatedType === 'Fermeture') {
-            // On vérifie s'il y a une ambiguïté (présence simultanée d'un mot-clé d'alternat)
             const hasAlternatConflict = combinedText.includes('alternat') || 
                                         combinedText.includes('restriction') || 
                                         combinedText.includes('voie impactée') || 
                                         combinedText.includes('circulation alternée');
             
             if (hasAlternatConflict) {
-                severity = 'warning'; // 🟠 Orange : Fermeture à vérifier (Conflit Fermeture + Alternat)
+                severity = 'warning'; 
             } else {
-                severity = 'danger';  // 🔴 Rouge : Bloquant Impératif (Fermeture claire)
+                severity = 'danger';  
             }
         } else if (calculatedType === 'Alternat') {
-            severity = 'info';        // 🔘 Gris : Mineur / Alternat uniquement
+            severity = 'info';        
         } else {
-            // Gestion de la blacklist pour les alertes informatives restantes
             const isBlacklisted = BLACKLIST_KEYWORDS.some(kw => 
                 titleLower.includes(kw.toLowerCase()) || detailLower.includes(kw.toLowerCase())
             );
             
             if (isBlacklisted || (alertStartDate && alertStartDate < oneYearAgo)) {
-                severity = 'blacklist'; // ⚪ Masqué / Obsolète
+                severity = 'blacklist'; 
             }
         }
         
         alert.computedSeverity = severity;
 
-        // --- 3. APPLICATION DES FILTRES DE L'INTERFACE ---
-        if (alert.computedSeverity === 'blacklist' && !isShowBlacklistChecked && selectedSeverity !== 'blacklist') {
-            return false; 
-        }
-
+        // --- FILTRES TEXTE, DEPT, NATURE & SEVERITE CIBLE ---
         const matchSearch = titleLower.includes(searchQuery) || crossLower.includes(searchQuery);
         const matchDept = selectedDept === 'all' || alert.deptCode === selectedDept;
         
@@ -416,7 +384,6 @@ function renderAlerts() {
             if (endLogic === 'after_or_on' && compDate < target) return false;
         }
 
-        // Filtre final sur les documents joints
         if (isHasDocChecked && (!alert.docs || alert.docs.length === 0)) {
             return false;
         }
@@ -424,8 +391,19 @@ function renderAlerts() {
         return true;
     });
 
-    // --- 4. TRI ET RENDU VISUEL ---
-    filtered.sort((a, b) => {
+    // 2. Séparation pour affichage visuel selon la checkbox blacklist
+    let displayedAlerts = filtered.filter(alert => {
+        if (alert.computedSeverity === 'blacklist' && !isShowBlacklistChecked && selectedSeverity !== 'blacklist') {
+            return false; 
+        }
+        return true;
+    });
+
+    // Mise à jour des compteurs statistiques (Le total affiche le nombre d'alertes visibles réelles)
+    updateStats(displayedAlerts.length, filtered);
+
+    // --- TRI DES ALERTES AFFICHÉES ---
+    displayedAlerts.sort((a, b) => {
         const dateA = parseAlertDate(a.updated) || (a.discoveredAt ? new Date(a.discoveredAt) : new Date(0));
         const dateB = parseAlertDate(b.updated) || (b.discoveredAt ? new Date(b.discoveredAt) : new Date(0));
         return sortAscending ? dateA - dateB : dateB - dateA;
@@ -434,19 +412,16 @@ function renderAlerts() {
     if (!alertsGrid) return;
     alertsGrid.innerHTML = '';
 
-    if (filtered.length === 0) {
+    if (displayedAlerts.length === 0) {
         alertsGrid.innerHTML = `<div class="empty-state">Aucun événement ne correspond aux critères sélectionnés.</div>`;
-        updateStats(0, filtered);
         return;
     }
 
     if (currentView === 'grid') {
-        renderGridView(filtered);
+        renderGridView(displayedAlerts);
     } else {
-        renderTableView(filtered);
+        renderTableView(displayedAlerts);
     }
-
-    updateStats(filtered.length, filtered);
 }
 
 // --- RENDU GRILLE STRUCTURÉE ---
@@ -668,7 +643,6 @@ function parseAlertDate(dateStr) {
     
     const cleanStr = dateStr.replace(/\s+/g, ' ').trim();
     
-    // FIX : Analyse du format FR (JJ/MM/AAAA) PRIORITAIRE pour contrer le parse US automatique
     const frMatch = cleanStr.match(/(\d{2})\/(\d{2})\/(\d{2,4})/);
     if (frMatch) {
         const day = parseInt(frMatch[1], 10);
