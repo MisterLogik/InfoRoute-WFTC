@@ -257,7 +257,7 @@ function renderAlerts() {
     const selectedType = filterType ? filterType.value : 'all';
     const selectedSeverity = filterSeverity ? filterSeverity.value : 'all';
     const isShowBlacklistChecked = filterShowBlacklist ? filterShowBlacklist.checked : false;
-    const isHasDocChecked = filterHasDoc ? filterHasDoc.checked : false; // <-- FIX : Récupération du booléen coché/décoché
+    const isHasDocChecked = filterHasDoc ? filterHasDoc.checked : false; // <-- Récupération du booléen coché/décoché
 
     const currentOnly = filterCurrentOnly ? filterCurrentOnly.checked : false;
     const startTargetStr = filterDateStart ? filterDateStart.value : '';
@@ -279,44 +279,74 @@ function renderAlerts() {
             return false;
         }
 
-        let calculatedType = alert.type;
-        if (alert.type.toLowerCase().includes('travaux') || alert.type.toLowerCase().includes('chantier')) {
-            const hasAlternatKeywords = crossLower.includes('alternat') || crossLower.includes('restriction') || crossLower.includes('voie impactée') || crossLower.includes('circulation alternée');
-            calculatedType = hasAlternatKeywords ? 'Alternat' : 'Fermeture';
-        } else if (titleLower.includes('ferm') || crossLower.includes('route fermée') || crossLower.includes('fermeture')) {
-            calculatedType = 'Fermeture';
-        }
-        alert.computedCategory = calculatedType;
-
-        const closureKeywords = ['coupé', 'coupee', 'coupée', 'coupés', 'coupées', 'barré', 'barrée', 'barrés', 'barrées', 'fermé', 'fermée', 'fermés', 'fermées', 'fermeture', 'interrompue', 'Circulation interdite'];
-
         const detailLower = (alert.cross || "").toLowerCase();
         const combinedText = titleLower + " " + detailLower;
+
+        // --- 1. DÉFINITION DE LA CATÉGORIE (HIÉRARCHIE D'IMPACT STRICTE) ---
+        let calculatedType = alert.type;
         
-        // 1. DÉTECTION PRIORITAIRE : Si c'est une fermeture, on ignore la blacklist
+        // Mots-clés indiquant une fermeture claire et absolue
+        const hasClosureKeywords = combinedText.includes('circulatation interdite') || 
+                                   combinedText.includes('interdite') || 
+                                   combinedText.includes('coupé') || 
+                                   combinedText.includes('coupée') || 
+                                   combinedText.includes('fermé') || 
+                                   combinedText.includes('fermée') || 
+                                   combinedText.includes('fermeture') || 
+                                   combinedText.includes('barré') || 
+                                   combinedText.includes('barrée');
+
+        // Mots-clés indiquant une restriction ou circulation partielle (Alternat)
+        const hasAlternatKeywords = combinedText.includes('alternat') || 
+                                    combinedText.includes('restriction') || 
+                                    combinedText.includes('voie impactée') || 
+                                    combinedText.includes('circulation alternée');
+
+        // Priorité 1 : Si un seul mot-clé de fermeture absolue est présent -> FERMETURE directe
+        if (hasClosureKeywords) {
+            calculatedType = 'Fermeture';
+        } 
+        // Priorité 2 : Si pas de fermeture mais présence de restriction/alternat -> ALTERNAT
+        else if (hasAlternatKeywords) {
+            calculatedType = 'Alternat';
+        } 
+        // Priorité 3 : Valeur par défaut ou déduction basée sur le type de l'alerte initiale
+        else if (alert.type.toLowerCase().includes('travaux') || alert.type.toLowerCase().includes('chantier')) {
+            calculatedType = 'Fermeture'; // Par défaut si travaux sans précision
+        }
+
+        alert.computedCategory = calculatedType;
+
+        // --- 2. DÉFINITION DE LA SÉVÉRITÉ (HIÉRARCHIE DE GRAVITÉ) ---
+        let severity = 'info'; // Base : Information
+
+        // Mots-clés pour la détection de la sévérité Fermeture
+        const closureKeywords = ['coupé', 'coupee', 'coupée', 'coupés', 'coupées', 'barré', 'barrée', 'barrés', 'barrées', 'fermé', 'fermée', 'fermés', 'fermées', 'fermeture', 'interrompue', 'circulation interdite'];
         const isClosure = closureKeywords.some(kw => combinedText.includes(kw));
-        
-        let severity = 'info';
-        
-        if (isClosure) {
-            const hasAbsoluteClosure = combinedText.includes('interrompue') || combinedText.includes('coupé') || combinedText.includes('coupée') || combinedText.includes('fermé') || combinedText.includes('fermée');
+
+        // Priorité 1 : Gravité Rouge/Orange si impact sur la circulation (Fermeture ou Alternat détecté)
+        if (alert.computedCategory === 'Fermeture' || isClosure) {
+            const hasAbsoluteClosure = combinedText.includes('interrompue') || combinedText.includes('coupé') || combinedText.includes('coupée') || combinedText.includes('fermé') || combinedText.includes('fermée') || combinedText.includes('interdite');
             
             if (hasAbsoluteClosure) {
-                severity = 'danger';
+                severity = 'danger'; // 🔴 Fermeture totale
             } else if (combinedText.includes('alternat')) {
-                severity = 'warning';
+                severity = 'warning'; // 🟠 Passage en alternat
             } else {
                 severity = 'danger';
             }
-            
-        } else {
-            // 2. SINON : On vérifie la blacklist
+        } 
+        else if (alert.computedCategory === 'Alternat') {
+            severity = 'warning'; // 🟠 Alternat / Restriction seule
+        } 
+        // Priorité 2 : Si pas d'impact majeur, validation des critères d'obsolescence / Blacklist
+        else {
             const isBlacklisted = BLACKLIST_KEYWORDS.some(kw => 
                 titleLower.includes(kw.toLowerCase()) || detailLower.includes(kw.toLowerCase())
             );
             
             if (isBlacklisted || (alertStartDate && alertStartDate < oneYearAgo)) {
-                severity = 'blacklist';
+                severity = 'blacklist'; // ⚪ Masqué / Obsolète
             }
         }
         
