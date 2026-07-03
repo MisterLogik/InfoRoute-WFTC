@@ -315,7 +315,7 @@ function renderAlerts() {
 
         // 1. On vérifie d'abord la blacklist et l'obsolescence de manière PRIORITAIRE
         const isBlacklisted = BLACKLIST_KEYWORDS.some(kw => 
-            titleLower.includes(kw.toLowerCase()) || detailLower.includes(kw.toLowerCase())
+            titleLower.includes(kw.toLowerCase()) /*|| detailLower.includes(kw.toLowerCase())*/
         );
         
         if (isBlacklisted || (alertStartDate && alertStartDate < oneYearAgo)) {
