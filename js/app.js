@@ -288,6 +288,7 @@ function renderAlerts() {
                                    combinedText.includes('interdite') || 
                                    combinedText.includes('coupé') || 
                                    combinedText.includes('coupée') || 
+                                   combinedText.includes('coupure') ||
                                    combinedText.includes('fermé') || 
                                    combinedText.includes('fermée') || 
                                    combinedText.includes('fermeture') || 
@@ -295,7 +296,7 @@ function renderAlerts() {
                                    combinedText.includes('barrée');
 
         const hasAlternatKeywords = combinedText.includes('alternat') || 
-                                    combinedText.includes('restriction') || 
+                                    //combinedText.includes('restriction') || 
                                     combinedText.includes('voie impactée') || 
                                     combinedText.includes('circulation alternée');
 
@@ -310,31 +311,32 @@ function renderAlerts() {
         alert.computedCategory = calculatedType;
 
         // --- DÉFINITION DE LA SÉVÉRITÉ ---
-        let severity = 'info'; 
+        let severity = 'info'; // Par défaut
 
-        if (calculatedType === 'Fermeture') {
+        // 1. On vérifie d'abord la blacklist et l'obsolescence de manière PRIORITAIRE
+        const isBlacklisted = BLACKLIST_KEYWORDS.some(kw => 
+            titleLower.includes(kw.toLowerCase()) || detailLower.includes(kw.toLowerCase())
+        );
+        
+        if (isBlacklisted || (alertStartDate && alertStartDate < oneYearAgo)) {
+            severity = 'blacklist'; // ⚪ Masqué / Obsolète
+        } 
+        // 2. Si l'alerte n'est pas blacklistée, on applique le reste de la logique
+        else if (calculatedType === 'Fermeture') {
             const hasAlternatConflict = combinedText.includes('alternat') || 
-                                        combinedText.includes('restriction') || 
+                                        //combinedText.includes('restriction') || 
                                         combinedText.includes('voie impactée') || 
                                         combinedText.includes('circulation alternée');
             
             if (hasAlternatConflict) {
-                severity = 'warning'; 
+                severity = 'warning'; // 🟠 Orange
             } else {
-                severity = 'danger';  
+                severity = 'danger';  // 🔴 Rouge
             }
         } else if (calculatedType === 'Alternat') {
-            severity = 'info';        
-        } else {
-            const isBlacklisted = BLACKLIST_KEYWORDS.some(kw => 
-                titleLower.includes(kw.toLowerCase()) || detailLower.includes(kw.toLowerCase())
-            );
-            
-            if (isBlacklisted || (alertStartDate && alertStartDate < oneYearAgo)) {
-                severity = 'blacklist'; 
-            }
+            severity = 'info';        // 🔘 Gris
         }
-        
+
         alert.computedSeverity = severity;
 
         // --- FILTRES TEXTE, DEPT, NATURE & SEVERITE CIBLE ---
