@@ -276,6 +276,9 @@ body {
     cursor: pointer;
     font-weight: 600;
     transition: all 0.2s;
+    white-space: nowrap; /* Empêche le retour à la ligne du texte */
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .btn-quick:hover { background-color: var(--waze-blue); color: #000; }
 .btn-quick:disabled { background-color: #555; cursor: not-allowed; }
@@ -295,7 +298,8 @@ body {
 
 .quick-actions-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, 1fr); /* Force 3 colonnes */
+    gap: 6px; /* Réduit un peu l'espacement pour que ça tienne bien */
     gap: 8px;
     margin-bottom: 10px;
     margin-top: 8px;
