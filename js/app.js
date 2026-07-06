@@ -28,10 +28,10 @@ const filterHasDoc = document.getElementById('filter-has-doc');
 const filterShowBlacklist = document.getElementById('filter-show-blacklist'); 
 
 const filterCurrentOnly = document.getElementById('filter-current-only');
-const filterDateStart = document.getElementById('filter-date-start');
-const filterDateStartLogic = document.getElementById('filter-date-start-logic');
-const filterDateEnd = document.getElementById('filter-date-end');
-const filterDateEndLogic = document.getElementById('filter-date-end-logic');
+// Remplacement de variable date
+const filterDateTarget = document.getElementById('filter-date-target');
+const filterDateMin = document.getElementById('filter-date-min');
+const filterDateMax = document.getElementById('filter-date-max');
 
 const searchBar = document.getElementById('search-bar');
 const alertsGrid = document.getElementById('alerts-grid');
@@ -89,10 +89,10 @@ function setupEventListeners() {
     if (filterShowBlacklist) filterShowBlacklist.addEventListener('change', renderAlerts); 
     
     if (filterCurrentOnly) filterCurrentOnly.addEventListener('change', renderAlerts);
-    if (filterDateStart) filterDateStart.addEventListener('change', renderAlerts);
-    if (filterDateStartLogic) filterDateStartLogic.addEventListener('change', renderAlerts);
-    if (filterDateEnd) filterDateEnd.addEventListener('change', renderAlerts);
-    if (filterDateEndLogic) filterDateEndLogic.addEventListener('change', renderAlerts);
+    // Remplacement de écouteurs  date
+    if (filterDateTarget) filterDateTarget.addEventListener('change', renderAlerts);
+    if (filterDateMin) filterDateMin.addEventListener('change', renderAlerts);
+    if (filterDateMax) filterDateMax.addEventListener('change', renderAlerts);
 }
 
 function switchView(viewType) {
@@ -123,10 +123,9 @@ function resetAllFilters() {
     if (filterHasDoc) filterHasDoc.checked = false; 
     if (filterShowBlacklist) filterShowBlacklist.checked = false; 
     if (filterCurrentOnly) filterCurrentOnly.checked = false;
-    if (filterDateStart) filterDateStart.value = '';
-    if (filterDateStartLogic) filterDateStartLogic.value = 'after_or_on';
-    if (filterDateEnd) filterDateEnd.value = '';
-    if (filterDateEndLogic) filterDateEndLogic.value = 'before_or_on';
+    if (filterDateTarget) filterDateTarget.value = 'start';
+    if (filterDateMin) filterDateMin.value = '';
+    if (filterDateMax) filterDateMax.value = '';
     renderAlerts();
 }
 
@@ -139,91 +138,65 @@ function getYYYYMMDD(date) {
 
 function setFilterToday() {
     resetAllFilters();
-    const today = new Date();
-    
-    if (filterDateStartLogic) filterDateStartLogic.value = 'after_or_on'; // ≥ À partir du
-    if (filterDateStart) filterDateStart.value = getYYYYMMDD(today);
-    
-    if (filterDateEndLogic) filterDateEndLogic.value = 'before_or_on';  // ≤ Jusqu'au
-    if (filterDateEnd) filterDateEnd.value = getYYYYMMDD(today);
-    
+    const todayStr = getYYYYMMDD(new Date());
+    if (filterDateTarget) filterDateTarget.value = 'start';
+    if (filterDateMin) filterDateMin.value = todayStr;
+    if (filterDateMax) filterDateMax.value = todayStr;
+    renderAlerts();
+}
+
+function setFilterTomorrow() { // Nouveau bouton "Demain"
+    resetAllFilters();
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = getYYYYMMDD(tomorrow);
+    if (filterDateTarget) filterDateTarget.value = 'start';
+    if (filterDateMin) filterDateMin.value = tomorrowStr;
+    if (filterDateMax) filterDateMax.value = tomorrowStr;
     renderAlerts();
 }
 
 function setFilterWeek() {
     resetAllFilters();
-    const now = new Date();
-    const currentDay = now.getDay(); // 0 = Dimanche, 1 = Lundi, etc.
-    
-    // Calcule l'écart par rapport au lundi en cours
-    const distanceToMonday = currentDay === 0 ? -6 : 1 - currentDay;
-    
-    const monday = new Date(now);
-    monday.setDate(now.getDate() + distanceToMonday);
-    
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6); 
-
-    if (filterDateStartLogic) filterDateStartLogic.value = 'after_or_on';
-    if (filterDateStart) filterDateStart.value = getYYYYMMDD(monday);
-    
-    if (filterDateEndLogic) filterDateEndLogic.value = 'before_or_on';
-    if (filterDateEnd) filterDateEnd.value = getYYYYMMDD(sunday);
-    
+    const start = new Date();
+    const end = new Date();
+    end.setDate(start.getDate() + 7); 
+    if (filterDateTarget) filterDateTarget.value = 'start';
+    if (filterDateMin) filterDateMin.value = getYYYYMMDD(start);
+    if (filterDateMax) filterDateMax.value = getYYYYMMDD(end);
     renderAlerts();
 }
 
 function setFilterNextWeek() {
     resetAllFilters();
-    const now = new Date();
-    const currentDay = now.getDay();
-    const distanceToMonday = currentDay === 0 ? -6 : 1 - currentDay;
-    
-    // Se positionne sur le lundi de la semaine prochaine (+7 jours)
-    const nextMonday = new Date(now);
-    nextMonday.setDate(now.getDate() + distanceToMonday + 7);
-    
-    const nextSunday = new Date(nextMonday);
-    nextSunday.setDate(nextMonday.getDate() + 6); 
-
-    if (filterDateStartLogic) filterDateStartLogic.value = 'after_or_on';
-    if (filterDateStart) filterDateStart.value = getYYYYMMDD(nextMonday);
-    
-    if (filterDateEndLogic) filterDateEndLogic.value = 'before_or_on';
-    if (filterDateEnd) filterDateEnd.value = getYYYYMMDD(nextSunday);
-    
+    const start = new Date();
+    start.setDate(start.getDate() + 7); 
+    const end = new Date();
+    end.setDate(start.getDate() + 7); 
+    if (filterDateTarget) filterDateTarget.value = 'start';
+    if (filterDateMin) filterDateMin.value = getYYYYMMDD(start);
+    if (filterDateMax) filterDateMax.value = getYYYYMMDD(end);
     renderAlerts();
 }
 
 function setFilterMonth() {
     resetAllFilters();
-    const now = new Date();
-    
-    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0); 
-
-    if (filterDateStartLogic) filterDateStartLogic.value = 'after_or_on';
-    if (filterDateStart) filterDateStart.value = getYYYYMMDD(firstDay);
-    
-    if (filterDateEndLogic) filterDateEndLogic.value = 'before_or_on';
-    if (filterDateEnd) filterDateEnd.value = getYYYYMMDD(lastDay);
-    
+    const start = new Date();
+    const end = new Date(start.getFullYear(), start.getMonth() + 1, 0); 
+    if (filterDateTarget) filterDateTarget.value = 'start';
+    if (filterDateMin) filterDateMin.value = getYYYYMMDD(start);
+    if (filterDateMax) filterDateMax.value = getYYYYMMDD(end);
     renderAlerts();
 }
 
 function setFilterNextMonth() {
     resetAllFilters();
     const now = new Date();
-    
     const firstDayNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     const lastDayNextMonth = new Date(now.getFullYear(), now.getMonth() + 2, 0);
-
-    if (filterDateStartLogic) filterDateStartLogic.value = 'after_or_on';
-    if (filterDateStart) filterDateStart.value = getYYYYMMDD(firstDayNextMonth);
-    
-    if (filterDateEndLogic) filterDateEndLogic.value = 'before_or_on';
-    if (filterDateEnd) filterDateEnd.value = getYYYYMMDD(lastDayNextMonth);
-    
+    if (filterDateTarget) filterDateTarget.value = 'start';
+    if (filterDateMin) filterDateMin.value = getYYYYMMDD(firstDayNextMonth);
+    if (filterDateMax) filterDateMax.value = getYYYYMMDD(lastDayNextMonth);
     renderAlerts();
 }
 
@@ -282,10 +255,9 @@ function renderAlerts() {
     const isHasDocChecked = filterHasDoc ? filterHasDoc.checked : false;
 
     const currentOnly = filterCurrentOnly ? filterCurrentOnly.checked : false;
-    const startTargetStr = filterDateStart ? filterDateStart.value : '';
-    const startLogic = filterDateStartLogic ? filterDateStartLogic.value : 'after_or_on';
-    const endTargetStr = filterDateEnd ? filterDateEnd.value : '';
-    const endLogic = filterDateEndLogic ? filterDateEndLogic.value : 'before_or_on';
+    const dateTarget = filterDateTarget ? filterDateTarget.value : 'start'; // 'start' ou 'end'
+    const dateMinStr = filterDateMin ? filterDateMin.value : '';
+    const dateMaxStr = filterDateMax ? filterDateMax.value : '';
 
     const now = new Date();
     //const oneYearAgo = new Date();
@@ -384,49 +356,36 @@ function renderAlerts() {
 
         if (!matchSearch || !matchDept || !matchType || !matchSeverity) return false;
 
+        // --- FILTRE "ACTIF MAINTENANT" ---
         if (currentOnly && alertStartDate) {
             if (alertStartDate > now) return false;
             const actualEndDate = extractEndDate(alert.cross);
             if (actualEndDate && actualEndDate < now) return false;
         }
 
-        // --- FILTRAGE PAR DATE DE DÉBUT ---
-        if (startTargetStr && alertStartDate) {
-            const target = new Date(startTargetStr);
-            target.setHours(0, 0, 0, 0);
-            const compDate = new Date(alertStartDate);
-            compDate.setHours(0, 0, 0, 0);
-
-            if (startLogic === 'before_or_on' && compDate > target) return false; // ≤ Avant le
-            if (startLogic === 'after_or_on' && compDate < target) return false;  // ≥ À partir du
-        }
-
-        // --- FILTRAGE PAR DATE DE FIN (SÉCURISÉ POUR LES ALERTES EN COURS) ---
-        if (endTargetStr) {
-            const actualEndDate = extractEndDate(alert.cross); // Renvoie null si aucune date de fin trouvée
-            const target = new Date(endTargetStr);
-
-            if (endLogic === 'before_or_on') {
-                // ≤ Jusqu'au : On cherche les événements finissant au plus tard ce jour-là
-                // Si l'alerte n'a pas de fin, elle est permanente, donc elle ne se termine pas "avant" -> Exclue
-                if (!actualEndDate) return false;
-
-                target.setHours(23, 59, 59, 999);
-                const compDate = new Date(actualEndDate);
-                compDate.setHours(0, 0, 0, 0);
-                if (compDate > target) return false;
-            }
+        // --- FILTRAGE PAR DATES (PERSONNALISÉ) ---
+        if (dateMinStr || dateMaxStr) {
+            const alertStartDate = parseAlertDate(alert.updated);
+            const alertEndDate = extractEndDate(alert.cross);
             
-            if (endLogic === 'after_or_on') {
-                // ≥ Après le : On veut voir tout ce qui est encore actif après cette date
-                // Si l'alerte a une fin définie et qu'elle se termine avant notre cible -> Exclue
-                if (actualEndDate) {
-                    target.setHours(0, 0, 0, 0);
-                    const compDate = new Date(actualEndDate);
-                    compDate.setHours(0, 0, 0, 0);
-                    if (compDate < target) return false;
-                }
-                // Si actualEndDate est null, l'alerte est permanente, elle reste donc visible (valide)
+            // On choisit la date de référence selon le menu déroulant
+            const dateToCompare = (dateTarget === 'start') ? alertStartDate : alertEndDate;
+
+            // Si aucune date n'est trouvée pour la cible choisie, on exclut l'alerte
+            if (!dateToCompare) return false;
+
+            const compTime = new Date(dateToCompare).setHours(0, 0, 0, 0);
+
+            // Borne MIN (Du...)
+            if (dateMinStr) {
+                const minTime = new Date(dateMinStr).setHours(0, 0, 0, 0);
+                if (compTime < minTime) return false;
+            }
+
+            // Borne MAX (Au...)
+            if (dateMaxStr) {
+                const maxTime = new Date(dateMaxStr).setHours(0, 0, 0, 0);
+                if (compTime > maxTime) return false;
             }
         }
         return true;
