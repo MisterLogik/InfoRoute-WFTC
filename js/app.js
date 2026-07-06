@@ -271,7 +271,7 @@ function renderAlerts() {
         const crossLower = alert.cross ? alert.cross.toLowerCase() : '';
         const alertStartDate = parseAlertDate(alert.updated);
 
-        const isAnyDateFilterActive = currentOnly || startTargetStr || endTargetStr;
+        const isAnyDateFilterActive = currentOnly || dateMinStr || dateMaxStr;
         if (isAnyDateFilterActive && !alertStartDate) {
             return false;
         }
