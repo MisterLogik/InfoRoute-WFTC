@@ -160,7 +160,7 @@ function setFilterWeek() {
     resetAllFilters();
     const start = new Date();
     const end = new Date();
-    end.setDate(start.getDate() + 7); 
+    end.setDate(start.getDate() + 6); 
     if (filterDateTarget) filterDateTarget.value = 'start';
     if (filterDateMin) filterDateMin.value = getYYYYMMDD(start);
     if (filterDateMax) filterDateMax.value = getYYYYMMDD(end);
@@ -172,7 +172,7 @@ function setFilterNextWeek() {
     const start = new Date();
     start.setDate(start.getDate() + 7); 
     const end = new Date();
-    end.setDate(start.getDate() + 7); 
+    end.setDate(start.getDate() + 6); 
     if (filterDateTarget) filterDateTarget.value = 'start';
     if (filterDateMin) filterDateMin.value = getYYYYMMDD(start);
     if (filterDateMax) filterDateMax.value = getYYYYMMDD(end);
@@ -197,6 +197,13 @@ function setFilterNextMonth() {
     if (filterDateTarget) filterDateTarget.value = 'start';
     if (filterDateMin) filterDateMin.value = getYYYYMMDD(firstDayNextMonth);
     if (filterDateMax) filterDateMax.value = getYYYYMMDD(lastDayNextMonth);
+    renderAlerts();
+}
+
+function applyDateFilter(target, minDate, maxDate) {
+    if (filterDateTarget) filterDateTarget.value = target;
+    if (filterDateMin) filterDateMin.value = getYYYYMMDD(minDate);
+    if (filterDateMax) filterDateMax.value = getYYYYMMDD(maxDate);
     renderAlerts();
 }
 
