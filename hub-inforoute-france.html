@@ -37,13 +37,13 @@
         
             <div class="filter-group border-top-dash">
                 <label>⚡ Accès rapides</label>
-                <div class="acces-rapides-grid">
-                    <button id="btn-today">Aujourd'hui</button>
-                    <button id="btn-tomorrow">Demain</button> <!-- Ajouté -->
-                    <button id="btn-this-week">Cette semaine</button>
-                    <button id="btn-next-week">Semaine pro.</button>
-                    <button id="btn-this-month">Ce mois-ci</button>
-                    <button id="btn-next-month">Mois prochain</button>
+                <div class="quick-actions-grid">
+                    <button id="btn-quick-today" class="btn-quick">Aujourd'hui</button>
+                    <button id="btn-quick-tomorrow" class="btn-quick">Demain</button>
+                    <button id="btn-quick-week" class="btn-quick">Cette semaine</button>
+                    <button id="btn-quick-next-week" class="btn-quick">Semaine pro.</button>
+                    <button id="btn-quick-month" class="btn-quick">Ce mois-ci</button>
+                    <button id="btn-quick-next-month" class="btn-quick" style="grid-column: span 2;">Mois prochain</button>
                 </div>
                 <label class="checkbox-container mt-10">
                     <input type="checkbox" id="filter-current-only">
@@ -95,22 +95,21 @@
                 <label>📅 Période personnalisée</label>
                 
                 <div class="date-bounds-container mt-5">
-                    <label class="sub-label">Début :</label>
-                    <div class="flex-row">
-                        <select id="filter-date-start-logic" class="select-sm">
-                            <option value="after_or_on">≥ À partir du</option>
-                            <option value="before_or_on">≤ Avant le</option>
-                        </select>
-                        <input type="date" id="filter-date-start">
+                    <!-- Choix de la cible -->
+                    <label class="sub-label">Appliquer le filtre sur :</label>
+                    <select id="filter-date-target" class="mb-5" style="width: 100%;">
+                        <option value="start">🚩 Date de début de l'alerte</option>
+                        <option value="end">🏳️ Date de fin de l'alerte</option>
+                    </select>
+            
+                    <!-- Bornes Min / Max -->
+                    <div class="flex-row mt-5">
+                        <span style="font-size:0.8rem; width:40px; align-self:center;">Du :</span>
+                        <input type="date" id="filter-date-min" style="flex:1;">
                     </div>
-        
-                    <label class="sub-label">Fin :</label>
-                    <div class="flex-row">
-                        <select id="filter-date-end-logic" class="select-sm">
-                            <option value="before_or_on">≤ Jusqu'au</option>
-                            <option value="after_or_on">≥ Après le</option>
-                        </select>
-                        <input type="date" id="filter-date-end">
+                    <div class="flex-row mt-5">
+                        <span style="font-size:0.8rem; width:40px; align-self:center;">Au :</span>
+                        <input type="date" id="filter-date-max" style="flex:1;">
                     </div>
                 </div>
             </div>
