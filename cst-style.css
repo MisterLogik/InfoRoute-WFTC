@@ -266,19 +266,19 @@ body {
 
 .quick-actions { display: flex; gap: 10px; margin-bottom: 15px; }
 .btn-quick {
+   
     flex: 1;
     background-color: #383838;
     border: 1px solid var(--border-color);
     color: #fff;
+    width: 100%;
+    box-sizing: border-box; /* Important pour que le padding n'élargisse pas le bouton */
     padding: 8px;
     font-size: 0.8rem;
     border-radius: 4px;
     cursor: pointer;
     font-weight: 600;
     transition: all 0.2s;
-    white-space: nowrap; /* Empêche le retour à la ligne du texte */
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 .btn-quick:hover { background-color: var(--waze-blue); color: #000; }
 .btn-quick:disabled { background-color: #555; cursor: not-allowed; }
@@ -298,8 +298,7 @@ body {
 
 .quick-actions-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr); /* Force 3 colonnes */
-    gap: 6px; /* Réduit un peu l'espacement pour que ça tienne bien */
+    grid-template-columns: repeat(2, 1fr); /* Force 3 colonnes */
     gap: 8px;
     margin-bottom: 10px;
     margin-top: 8px;
