@@ -274,8 +274,9 @@ function renderAlerts() {
 
     // 1. Filtrage général (conserve la blacklist pour les stats globales)
     let filtered = window.ALL_ALERTS.filter(alert => {
-        const titleLower = alert.title.toLowerCase();
-        const crossLower = alert.cross ? alert.cross.toLowerCase() : '';
+        const titleLower = (alert.title || '').toLowerCase();
+        const crossLower = (alert.cross || '').toLowerCase();
+        const typeLower = (alert.type || '').toLowerCase(); 
         const alertStartDate = parseAlertDate(alert.updated);
 
         if (alert.isPermanent) {
