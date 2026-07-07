@@ -278,13 +278,18 @@ function renderAlerts() {
         const crossLower = alert.cross ? alert.cross.toLowerCase() : '';
         const alertStartDate = parseAlertDate(alert.updated);
 
+        if (alert.isPermanent) {
+            alert.computedSeverity = 'info';
+        }
+
         const isAnyDateFilterActive = currentOnly || dateMinStr || dateMaxStr;
         if (isAnyDateFilterActive && !alertStartDate) {
             return false;
         }
 
         const detailLower = (alert.cross || "").toLowerCase();
-        const combinedText = titleLower + " " + detailLower;
+        const chantierLower = (alert.codeChantier || "").toLowerCase(); // Nouvelle ligne
+        const combinedText = titleLower + " " + detailLower + " " + chantierLower;
 
         // --- DÉFINITION DE LA CATÉGORIE ---
         let calculatedType = alert.type;
@@ -364,14 +369,14 @@ function renderAlerts() {
         if (!matchSearch || !matchDept || !matchType || !matchSeverity) return false;
 
         // --- FILTRE "ACTIF MAINTENANT" ---
-        if (currentOnly && alertStartDate) {
+        if (currentOnly && alertStartDate && !alert.isPermanent) { 
             if (alertStartDate > now) return false;
             const actualEndDate = extractEndDate(alert.cross);
             if (actualEndDate && actualEndDate < now) return false;
         }
 
         // --- FILTRAGE PAR DATES (PERSONNALISÉ) ---
-        if (dateMinStr || dateMaxStr) {
+        if ((dateMinStr || dateMaxStr) && !alert.isPermanent) {
             const alertStartDate = parseAlertDate(alert.updated);
             const alertEndDate = extractEndDate(alert.cross);
             
@@ -446,6 +451,7 @@ function renderGridView(alerts) {
         let dateDebut = formatDisplayDate(alert.updated) || "Non spécifiée";
         let dateFin = "";
         let detailInfo = "Aucun détail complémentaire.";
+        
 
         if (alert.cross) {
             const matchType = alert.cross.match(/Type\s*:\s*([^\n]+)/i);
@@ -591,7 +597,8 @@ function renderTableView(alerts) {
     let rowsHtml = '';
     alerts.forEach(alert => {
         let severityClass = 'row-warning';
-        if (alert.computedSeverity === 'danger') severityClass = 'row-danger';
+        if (alert.isPermanent) severityClass = 'row-info-permanent'; 
+        else if (alert.computedSeverity === 'danger') severityClass = 'row-danger';
         else if (alert.computedSeverity === 'info') severityClass = 'row-info';
         else if (alert.computedSeverity === 'blacklist') severityClass = 'row-blacklist';
         
@@ -609,15 +616,19 @@ function renderTableView(alerts) {
 
         const isBl = alert.computedSeverity === 'blacklist';
         const displayCross = isBl ? '<span style="color:var(--text-muted); font-style:italic;">Masqué / Archivage de sécurité</span>' : alert.cross;
+        const chantierCell = alert.codeChantier ? `<div style="font-size:0.7rem; color:#d35400; font-weight:bold;">${alert.codeChantier}</div>` : '';
 
         rowsHtml += `
             <tr class="${severityClass}">
                 <td style="font-weight:bold; text-align:center;">${alert.deptCode}</td>
                 <td><strong>${isBl ? 'Obsolète/BL' : alert.computedCategory}</strong></td>
                 <td>
-                    <div style="font-weight:600; color:${isBl ? 'var(--text-muted)' : '#fff'};">${alert.title}</div>
+                    <div style="font-weight:600; color:${isBl ? 'var(--text-muted)' : '#fff'};">
+                        ${alert.title} ${alert.isPermanent ? ' <span style="font-size:0.6rem; background:green; color:white; padding:1px 4px; border-radius:3px;">PERM</span>' : ''}
+                    </div>
+                    ${chantierCell}
                     <div style="font-size:0.75rem; color:#aaa; max-width:40px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-                        ${displayCross}
+                        ${isBl ? 'Masqué / Archivage de sécurité' : alert.cross}
                     </div>
                 </td>
                 <td style="font-size:0.75rem; white-space:nowrap;">${formatDisplayDate(alert.updated)}</td>
@@ -632,7 +643,7 @@ function renderTableView(alerts) {
                 <tr>
                     <th style="width:50px; text-align:center;">Dép</th>
                     <th style="width:100px;">Nature</th>
-                    <th>Événement & Description</th>
+                    <th>Événement, Description & Chantier</th>
                     <th style="width:130px;">Début / Màj</th>
                     <th style="width:110px;">Éditeur WME</th>
                 </tr>
