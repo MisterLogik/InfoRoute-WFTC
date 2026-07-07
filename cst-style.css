@@ -375,6 +375,7 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.8); cur
 .tc-table th { background-color: #1a1a1a; color: var(--text-muted); font-weight: 600; text-transform: uppercase; font-size: 0.75rem; }
 .tc-table tr:hover { background-color: rgba(255, 255, 255, 0.03); }
 
+.row-info-permanent { border-left: 4px solid green; background-color: rgba(76, 175, 80, 0.1); }
 .row-danger { border-left: 4px solid var(--danger); }
 .row-warning { border-left: 4px solid var(--warning); }
 .row-info { border-left: 4px solid var(--info-gray); }
