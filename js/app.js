@@ -478,12 +478,23 @@ function renderGridView(alerts) {
             }
         }
 
-        let emplacementInfo = alert.title;
+        /*let emplacementInfo = alert.title;
         if (alert.title.includes(' — ')) {
             const parts = alert.title.split(' — ');
             emplacementInfo = parts.slice(1).join(' — ');
         } else if (alert.title.includes(' - ')) {
             const parts = alert.title.split(' - ');
+            emplacementInfo = parts.slice(1).join(' - ');
+        }*/
+
+        const title = alert.title || ''; 
+
+        let emplacementInfo = title;
+        if (title.includes(' — ')) {
+            const parts = title.split(' — ');
+            emplacementInfo = parts.slice(1).join(' — ');
+        } else if (title.includes(' - ')) {
+            const parts = title.split(' - ');
             emplacementInfo = parts.slice(1).join(' - ');
         }
 
