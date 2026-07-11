@@ -14,11 +14,7 @@ export const SAVOIE_CATEGORIES = {
 
 // Configuration globale restreinte à la Savoie unique (73)
 export const DEPARTEMENTS_CONFIG = {
-    "FR00": { 
-        name: "BFO", 
-        format: "xml-datex2", 
-        urls: ["https://tipi.bison-fute.gouv.fr/bison-fute-ouvert/publicationsDIR/Evenementiel-DIR/grt/RRN/content.xml"] 
-    }
+    "FR00": { name: "BFO", format: "xml-datex2", urls: ["https://tipi.bison-fute.gouv.fr/bison-fute-ouvert/publicationsDIR/Evenementiel-DIR/grt/RRN/content.xml"] },
     "01": { name: "Ain", format: "geojson-get", urls: ["https://www.inforoute01.fr/mod_turbolead/mod/inforoute/index.php?action=374"] },
     "04": { name: "Alpes-de-Haute-Provence", format: "geojson-get", urls: ["https://www.inforoute04.fr/mod_turbolead/mod/inforoute/index.php?action=374"] },
     "09": { name: "Ariège", format: "geojson-get", urls: ["https://www.inforoute09.fr/mod_turbolead/mod/inforoute/index.php?action=374"] },
