@@ -205,6 +205,8 @@ async function fetchDatex2Data(deptCode, urls) {
     for (const url of urls) {
         try {
             const xmlText = await gmGetText(url);
+            console.log("XML reçu pour BFO :", xmlText ? "Succès" : "Échec"); // <--- AJOUTEZ CECI
+            
             if (!xmlText) continue;
 
             const parser = new DOMParser();
