@@ -9,6 +9,8 @@ export async function fetchDeptData(deptCode) {
             return await fetchSavoieApiData(deptCode, config.apiUrlBase);
         } else if (config.format === 'geojson-get') {
             return await fetchGeojsonData(deptCode, config.urls);
+        } else if (config.format === 'xml-datex2') { 
+            return await fetchDatex2Data(deptCode, config.urls);
         }
     } catch (error) {
         console.error(`Erreur globale de récupération pour le département ${deptCode}:`, error);
@@ -290,5 +292,15 @@ function gmGetJson(url) {
     }).then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
+    });
+}
+
+function gmGetText(url) {
+    const proxiedUrl = `${PROXY_URL}?url=${encodeURIComponent(url)}`;
+    return fetch(proxiedUrl, {
+        method: 'GET'
+    }).then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.text();
     });
 }
