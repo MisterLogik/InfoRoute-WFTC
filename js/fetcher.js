@@ -239,7 +239,7 @@ async function fetchDatex2Data(deptCode, urls) {
                     if (!startRaw) startRaw = record.querySelector("*|overallStartTime")?.textContent || "";
                     if (!endRaw) endRaw = record.querySelector("*|overallEndTime")?.textContent || "";
 
-                    // 2. Extraction du type de record pour enrichir l'information
+                    // 2. Extraction du type de record
                     const typeRaw = record.getAttribute("xsi:type") || "";
                     if (typeRaw) {
                         const cleanType = typeRaw.replace("ns2:", "");
@@ -252,7 +252,6 @@ async function fetchDatex2Data(deptCode, urls) {
                         const val = comment.querySelector("*|value")?.textContent;
                         const cType = comment.querySelector("*|commentType")?.textContent;
                         if (val && !detailsArray.includes(val)) {
-                            // On peut optionnellement ajouter le type de commentaire pour aider à la lecture
                             if (cType === "description") {
                                 detailsArray.unshift(val); // Priorité à la description principale
                             } else {
@@ -273,15 +272,14 @@ async function fetchDatex2Data(deptCode, urls) {
                         detailsArray.push(`Déviation : ${itinerary}`);
                     }
 
-                    // 6. Extraction des coordonnées géographiques (Point de départ ou premier trouvé)
+                    // 6. Extraction des coordonnées géographiques
                     if (lat === null || lon === null) {
-                        // Cherche dans tpegLinearLocation (from / to)
+                        // Cherche d'abord dans la géométrie du segment (fromPoint)
                         const fromPoint = record.querySelector("*|from *|pointCoordinates");
                         if (fromPoint) {
                             lat = parseFloat(fromPoint.querySelector("*|latitude")?.textContent);
                             lon = parseFloat(fromPoint.querySelector("*|longitude")?.textContent);
                         } else {
-                            // Fallback sur d'autres structures de coordonnées si présentes
                             const genericLat = record.querySelector("*|latitude")?.textContent;
                             const genericLon = record.querySelector("*|longitude")?.textContent;
                             if (genericLat && genericLon) {
@@ -304,37 +302,36 @@ async function fetchDatex2Data(deptCode, urls) {
                     });
                 });
 
-                // Formatage des dates d'exploitation
+                // Formatage des dates
                 const formatDate = (isoStr) => isoStr ? new Date(isoStr).toLocaleString('fr-FR').replace(',', '') : 'Non spécifiée';
                 const dateDebut = formatDate(startRaw);
                 const dateFin = formatDate(endRaw);
 
-                // Construction des chaînes finales
                 const emplacementConcat = locationsArray.join(' / ') || "Lieu non spécifié";
                 const detailsConcat = detailsArray.join('\n') || "Pas de détails disponibles";
-                const coordonneesStr = (lat && lon) ? `${lat}, ${lon}` : "Non spécifiées";
 
-                // Titre demandé : "BFO-ID-(version) — Alerte"
+                // Titre unifié pour la liste et la carte
                 const titreUnifie = `BFO-${sitId}-${sitVersion} — Alerte`;
 
-                // Assemblage du bloc textuel structuré pour le champ 'cross'
-                let chunks = [];
-                chunks.push(`TITRE: ${titreUnifie}`);
-                chunks.push(`Type: Alerte (${recordTypes.join(', ')})`);
-                chunks.push(`Impact: ${severity}`);
-                chunks.push(`Emplacement: ${emplacementConcat}`);
-                chunks.push(`Date début: ${dateDebut}`);
-                chunks.push(`Date Fin: ${dateFin}`);
-                chunks.push(`Détail: ${detailsConcat}`);
-                chunks.push(`\nMise à jour... : ${dateMiseAJour}`);
-                chunks.push(`Coordonnées: ${coordonneesStr}`);
+                // Reconstitution des "chunks" propres de description, sans répéter les métadonnées globales
+                let crossChunks = [];
+                crossChunks.push(`Type : Alerte (${recordTypes.join(', ')})`);
+                crossChunks.push(`Impact : ${severity}`);
+                crossChunks.push(`Emplacement : ${emplacementConcat}`);
+                crossChunks.push(`Début : ${dateDebut}`);
+                if (startRaw !== endRaw && endRaw) crossChunks.push(`Fin : ${dateFin}`);
+                crossChunks.push(`\nDétails :\n${detailsConcat}`);
 
                 alerts.push({
                     id: `${deptCode}-${sitId}_${sitVersion}`,
                     type: 'Alerte',
                     title: titreUnifie,
-                    cross: chunks.join('\n').trim(),
-                    updated: dateMiseAJour,
+                    
+                    // cross contiendra les infos formatées attendues par le bloc de texte de l'UI
+                    cross: crossChunks.join('\n').trim(), 
+                    
+                    // Permet à app.js d'utiliser les vraies variables là où il en a besoin
+                    updated: dateMiseAJour, 
                     severity: severity === 'high' ? 'danger' : 'warning',
                     lat: isNaN(lat) ? null : lat,
                     lon: isNaN(lon) ? null : lon,
