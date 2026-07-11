@@ -196,6 +196,62 @@ async function fetchSavoieApiData(deptCode, apiBaseUrl) {
     return alerts;
 }
 
+// --- MOTEUR AMÉLIORÉ : Flux XML Datex II (Bison Futé National) ---
+async function fetchDatex2Data(deptCode, urls) {
+    let alerts = [];
+    
+    for (const url of urls) {
+        try {
+            const xmlText = await gmGetText(url);
+            if (!xmlText) continue;
+
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+            
+            // On cible spécifiquement les situations (incidents/travaux)
+            const records = xmlDoc.querySelectorAll("situationRecord");
+
+            records.forEach((record, index) => {
+                // Extraction sécurisée des nœuds avec fallback si namespace
+                const find = (tag) => record.getElementsByTagName(tag)[0]?.textContent || "";
+                
+                const id = record.getAttribute("id") || index;
+                const lat = parseFloat(record.getElementsByTagName("latitude")[0]?.textContent);
+                const lon = parseFloat(record.getElementsByTagName("longitude")[0]?.textContent);
+                
+                const desc = find("comment") || find("situationRecordCreationReference");
+                const start = find("overallStartTime");
+                const end = find("overallEndTime");
+                
+                // Normalisation date
+                const formatDate = (isoStr) => isoStr ? new Date(isoStr).toLocaleString('fr-FR').replace(',', '') : 'Non spécifiée';
+
+                // Typage intelligent (Bison Futé utilise souvent des balises 'type')
+                const typeRaw = record.getAttribute("xsi:type") || "";
+                let natureType = 'Alerte';
+                if (typeRaw.includes('Roadworks')) natureType = 'Travaux';
+                else if (typeRaw.includes('RoadDamage')) natureType = 'Accident';
+                else if (typeRaw.includes('Obstruction')) natureType = 'Fermeture';
+
+                alerts.push({
+                    id: `${deptCode}-${id}`,
+                    type: natureType,
+                    title: `Bison Futé — ${natureType} (National)`,
+                    cross: `Type : ${natureType}\nDébut : ${formatDate(start)}\nFin : ${formatDate(end)}\n\nDétails :\n${cleanText(desc)}`,
+                    updated: formatDate(start),
+                    severity: natureType === 'Travaux' ? 'info' : 'warning',
+                    lat: isNaN(lat) ? null : lat,
+                    lon: isNaN(lon) ? null : lon,
+                    docs: []
+                });
+            });
+        } catch (err) {
+            console.warn(`Erreur parsing XML pour ${deptCode}:`, err);
+        }
+    }
+    return alerts;
+}
+
 // --- UTILS : Nettoyage et requêtes ---
 function cleanText(str) {
     if (!str) return '';
