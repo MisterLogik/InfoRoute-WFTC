@@ -20,12 +20,12 @@ export const DEPARTEMENTS_CONFIG = {
     "09": { name: "Ariège", format: "geojson-get", urls: ["https://www.inforoute09.fr/mod_turbolead/mod/inforoute/index.php?action=374"] },
     "11": { name: "Aude", format: "geojson-get", urls: ["https://www.inforoute11.fr/mod_turbolead/mod/inforoute/index.php?action=374"] },
     "12": { name: "Aveyron", format: "geojson-get", urls: ["https://www.inforoute12.fr/mod_turbolead/mod/inforoute/index.php?action=374"] },
-    "13": { name: "Zone Méditerranée", format: "geojson-get", urls: ["https://www.inforoute-mediterranee.fr/"] },
+    /*"13": { name: "Zone Méditerranée", format: "geojson-get", urls: ["https://www.inforoute-mediterranee.fr/"] },*/
     "14": { name: "Calvados", format: "geojson-get", urls: ["https://www.inforoute14.fr/mod_turbolead/mod/inforoute/index.php?action=374"] },
     "15": { name: "Cantal", format: "geojson-get", urls: ["https://www.inforoute15.fr/mod_turbolead/mod/inforoute/index.php?action=374"] },
     "18": { name: "Cher", format: "geojson-get", urls: ["https://www.inforoute18.fr/mod_turbolead/mod/inforoute/index.php?action=374"] },
     "21": { name: "Côte-d'Or", format: "geojson-get", urls: ["https://www.inforoute21.fr/mod_turbolead/mod/inforoute/index.php?action=374"] },
-    "24": { name: "Dordogne", format: "geojson-get", urls: ["https://dordogne.maps.arcgis.com/apps/instant/sidebar/index.html?appid=7482ab5a19814d30a3373f4aa9e3fe3f"] },
+    /*"24": { name: "Dordogne", format: "geojson-get", urls: ["https://dordogne.maps.arcgis.com/apps/instant/sidebar/index.html?appid=7482ab5a19814d30a3373f4aa9e3fe3f"] },*/
     "25": { name: "Doubs", format: "geojson-get", urls: ["https://www.inforoute25.fr/mod_turbolead/mod/inforoute/index.php?action=374"] },
     "27": { name: "Eure", format: "geojson-get", urls: ["https://www.inforoute27.fr/mod_turbolead/mod/inforoute/index.php?action=374"] },
     "28": { name: "Eure-et-Loir", format: "geojson-get", urls: ["https://www.inforoute28.fr/mod_turbolead/mod/inforoute/index.php?action=374"] },
@@ -53,9 +53,9 @@ export const DEPARTEMENTS_CONFIG = {
         ] 
     },
     "39": { name: "Jura", format: "geojson-get", urls: ["https://www.inforoute39.fr/mod_turbolead/mod/inforoute/index.php?action=376"] },
-    "40": { name: "Landes", format: "geojson-get", urls: ["https://travaux.landes.fr/json"] },
+    /*"40": { name: "Landes", format: "geojson-get", urls: ["https://travaux.landes.fr/json"] },*/
     "42": { name: "Loire", format: "geojson-get", urls: ["https://www.inforoute42.fr/mod_turbolead/mod/inforoute/index.php?action=374"] },
-    "43": { name: "Haute-Loire", format: "geojson-get", urls: ["https://www.inforoute43.fr/"] },
+    "43": { name: "Haute-Loire", format: "geojson-get", urls: ["https://www.inforoute43.fr/mod_turbolead/mod/inforoute/index.php?action=374"] },
     "47": { name: "Lot-et-Garonne", format: "geojson-get", urls: ["https://www.inforoute47.fr/mod_turbolead/mod/inforoute/index.php?action=374"] },
     "48": { name: "Lozère", format: "geojson-get", urls: ["https://www.inforoute48.fr/mod_turbolead/mod/inforoute/index.php?action=374"] },
     "54": { name: "Meurthe-et-Moselle", format: "geojson-get", urls: ["https://www.inforoute54.fr/mod_turbolead/mod/inforoute/index.php?action=374"] },
@@ -81,7 +81,7 @@ export const DEPARTEMENTS_CONFIG = {
     "76": { name: "Seine-Maritime", format: "geojson-get", urls: ["https://www.inforoute76.fr/mod_turbolead/mod/inforoute/index.php?action=374"] },
     "81": { name: "Tarn", format: "geojson-get", urls: ["https://www.inforoute81.fr/mod_turbolead/mod/inforoute/index.php?action=374"] },
     "83": { name: "Var", format: "geojson-get", urls: ["https://www.inforoute-mediterranee.fr/mod_turbolead/mod/inforoute/index.php?action=374"] },
-    "88": { name: "Vosges", format: "geojson-get", urls: ["https://inforoute88.fr/"] },
+    /*"88": { name: "Vosges", format: "geojson-get", urls: ["https://inforoute88.fr/"] },*/
     "90": { name: "Territoire de Belfort", format: "geojson-get", urls: ["https://www.inforoute90.fr/mod_turbolead/mod/inforoute/index.php?action=374"] }
 };
 
