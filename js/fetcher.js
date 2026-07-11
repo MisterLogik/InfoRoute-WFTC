@@ -230,12 +230,13 @@ async function fetchDatex2Data(deptCode, urls) {
                 let startRaw = "";
                 let endRaw = "";
                 let detailsArray = [];
-                let locationsArray = [];
+                let roadsArray = [];
+                let townsArray = [];
                 let lat = null, lon = null;
                 let recordTypes = [];
 
                 records.forEach((record) => {
-                    // 1. Extraction des dates (on prend la première valide trouvée)
+                    // 1. Extraction des dates
                     if (!startRaw) startRaw = record.querySelector("*|overallStartTime")?.textContent || "";
                     if (!endRaw) endRaw = record.querySelector("*|overallEndTime")?.textContent || "";
 
@@ -253,7 +254,7 @@ async function fetchDatex2Data(deptCode, urls) {
                         const cType = comment.querySelector("*|commentType")?.textContent;
                         if (val && !detailsArray.includes(val)) {
                             if (cType === "description") {
-                                detailsArray.unshift(val); // Priorité à la description principale
+                                detailsArray.unshift(val); 
                             } else {
                                 detailsArray.push(val);
                             }
@@ -274,7 +275,6 @@ async function fetchDatex2Data(deptCode, urls) {
 
                     // 6. Extraction des coordonnées géographiques
                     if (lat === null || lon === null) {
-                        // Cherche d'abord dans la géométrie du segment (fromPoint)
                         const fromPoint = record.querySelector("*|from *|pointCoordinates");
                         if (fromPoint) {
                             lat = parseFloat(fromPoint.querySelector("*|latitude")?.textContent);
@@ -289,15 +289,16 @@ async function fetchDatex2Data(deptCode, urls) {
                         }
                     }
 
-                    // 7. Extraction du lieu / axe routier
+                    // 7. Extraction distincte de la route (Axe) et de la ville (Commune)
                     const roadNumber = record.querySelector("*|roadNumber")?.textContent;
-                    if (roadNumber && !locationsArray.includes(roadNumber)) {
-                        locationsArray.push(roadNumber);
+                    if (roadNumber && !roadsArray.includes(roadNumber)) {
+                        roadsArray.push(roadNumber);
                     }
+                    
                     const locationNames = record.querySelectorAll("*|alertCLocationName *|value");
                     locationNames.forEach(loc => {
-                        if (loc.textContent && !locationsArray.includes(loc.textContent)) {
-                            locationsArray.push(loc.textContent);
+                        if (loc.textContent && !townsArray.includes(loc.textContent)) {
+                            townsArray.push(loc.textContent);
                         }
                     });
                 });
@@ -307,13 +308,19 @@ async function fetchDatex2Data(deptCode, urls) {
                 const dateDebut = formatDate(startRaw);
                 const dateFin = formatDate(endRaw);
 
-                const emplacementConcat = locationsArray.join(' / ') || "Lieu non spécifié";
+                // Construction des chaînes de localisation
+                const axeRoutier = roadsArray.join(', ') || "Axe inconnu";
+                const communesConcat = townsArray.join(' / ') || "Lieu inconnu";
+                const emplacementConcat = `${axeRoutier} — ${communesConcat}`;
+                
                 const detailsConcat = detailsArray.join('\n') || "Pas de détails disponibles";
 
-                // Titre unifié pour la liste et la carte
-                const titreUnifie = `BFO-${sitId}-${sitVersion} — Alerte`;
+                // Format strict pour s'adapter au split(' — ') de app.js : "Nature — Axe — Commune"
+                // On met l'identifiant BFO unique au début comme type/nature pour l'UI
+                const prefixBFO = `BFO-${sitId}-${sitVersion}`;
+                const titreUnifie = `${prefixBFO} — ${axeRoutier} — ${communesConcat}`;
 
-                // Reconstitution des "chunks" propres de description, sans répéter les métadonnées globales
+                // Reconstitution du bloc textuel interne
                 let crossChunks = [];
                 crossChunks.push(`Type : Alerte (${recordTypes.join(', ')})`);
                 crossChunks.push(`Impact : ${severity}`);
@@ -326,15 +333,13 @@ async function fetchDatex2Data(deptCode, urls) {
                     id: `${deptCode}-${sitId}_${sitVersion}`,
                     type: 'Alerte',
                     title: titreUnifie,
-                    
-                    // cross contiendra les infos formatées attendues par le bloc de texte de l'UI
                     cross: crossChunks.join('\n').trim(), 
-                    
-                    // Permet à app.js d'utiliser les vraies variables là où il en a besoin
                     updated: dateMiseAJour, 
                     severity: severity === 'high' ? 'danger' : 'warning',
                     lat: isNaN(lat) ? null : lat,
                     lon: isNaN(lon) ? null : lon,
+                    axe: axeRoutier,       // Ajout explicite pour app.js
+                    commune: communesConcat, // Ajout explicite pour app.js
                     docs: []
                 });
             });
