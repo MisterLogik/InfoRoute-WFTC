@@ -210,42 +210,132 @@ async function fetchDatex2Data(deptCode, urls) {
             const parser = new DOMParser();
             const xmlDoc = parser.parseFromString(xmlText, "text/xml");
             
-            const records = xmlDoc.querySelectorAll("*|situationRecord");
+            // On cible d'abord les situations globales
+            const situations = xmlDoc.querySelectorAll("*|situation");
 
-            records.forEach((record) => {
-                // Fonction pour chercher n'importe quel tag peu importe le préfixe
-                const find = (tag) => record.querySelector(`*|${tag}`)?.textContent || "";
+            situations.forEach((situation) => {
+                const sitId = situation.getAttribute("id") || "unknown";
+                const sitVersion = situation.getAttribute("version") || "1";
                 
-                // Récupération de l'ID et de la Version
-                const id = record.getAttribute("id") || "unknown";
-                const version = record.getAttribute("version") || "v1";
-                const fullId = `${id}_${version}`;
+                // Date de mise à jour globale de la situation
+                const versionTimeRaw = situation.querySelector("*|situationVersionTime")?.textContent;
+                const dateMiseAJour = versionTimeRaw ? new Date(versionTimeRaw).toLocaleString('fr-FR').replace(',', '') : 'Non spécifiée';
+
+                // Recherche de la sévérité globale (Impact)
+                const severity = situation.querySelector("*|overallSeverity")?.textContent || "Non spécifié";
+
+                // Exploration des sous-records de la situation
+                const records = situation.querySelectorAll("*|situationRecord");
                 
-                // Coordonnées
-                const lat = parseFloat(record.querySelector("*|latitude")?.textContent);
-                const lon = parseFloat(record.querySelector("*|longitude")?.textContent);
-                
-                const start = find("overallStartTime");
-                const end = find("overallEndTime");
-                
-                // Extraction optimisée du commentaire public
-                const desc = record.querySelector("*|generalPublicComment *|value")?.textContent || "Pas de description disponible";
-                
+                let startRaw = "";
+                let endRaw = "";
+                let detailsArray = [];
+                let locationsArray = [];
+                let lat = null, lon = null;
+                let recordTypes = [];
+
+                records.forEach((record) => {
+                    // 1. Extraction des dates (on prend la première valide trouvée)
+                    if (!startRaw) startRaw = record.querySelector("*|overallStartTime")?.textContent || "";
+                    if (!endRaw) endRaw = record.querySelector("*|overallEndTime")?.textContent || "";
+
+                    // 2. Extraction du type de record pour enrichir l'information
+                    const typeRaw = record.getAttribute("xsi:type") || "";
+                    if (typeRaw) {
+                        const cleanType = typeRaw.replace("ns2:", "");
+                        if (!recordTypes.includes(cleanType)) recordTypes.push(cleanType);
+                    }
+
+                    // 3. Accumulation des commentaires (Détails)
+                    const comments = record.querySelectorAll("*|generalPublicComment");
+                    comments.forEach(comment => {
+                        const val = comment.querySelector("*|value")?.textContent;
+                        const cType = comment.querySelector("*|commentType")?.textContent;
+                        if (val && !detailsArray.includes(val)) {
+                            // On peut optionnellement ajouter le type de commentaire pour aider à la lecture
+                            if (cType === "description") {
+                                detailsArray.unshift(val); // Priorité à la description principale
+                            } else {
+                                detailsArray.push(val);
+                            }
+                        }
+                    });
+
+                    // 4. Extraction des périodes spécifiques (ex: "Uniquement de nuit")
+                    const periodName = record.querySelector("*|validPeriod *|value")?.textContent;
+                    if (periodName && !detailsArray.includes(periodName)) {
+                        detailsArray.push(`Période : ${periodName}`);
+                    }
+
+                    // 5. Extraction des descriptions d'itinéraire de déviation
+                    const itinerary = record.querySelector("*|reroutingItineraryDescription *|value")?.textContent;
+                    if (itinerary) {
+                        detailsArray.push(`Déviation : ${itinerary}`);
+                    }
+
+                    // 6. Extraction des coordonnées géographiques (Point de départ ou premier trouvé)
+                    if (lat === null || lon === null) {
+                        // Cherche dans tpegLinearLocation (from / to)
+                        const fromPoint = record.querySelector("*|from *|pointCoordinates");
+                        if (fromPoint) {
+                            lat = parseFloat(fromPoint.querySelector("*|latitude")?.textContent);
+                            lon = parseFloat(fromPoint.querySelector("*|longitude")?.textContent);
+                        } else {
+                            // Fallback sur d'autres structures de coordonnées si présentes
+                            const genericLat = record.querySelector("*|latitude")?.textContent;
+                            const genericLon = record.querySelector("*|longitude")?.textContent;
+                            if (genericLat && genericLon) {
+                                lat = parseFloat(genericLat);
+                                lon = parseFloat(genericLon);
+                            }
+                        }
+                    }
+
+                    // 7. Extraction du lieu / axe routier
+                    const roadNumber = record.querySelector("*|roadNumber")?.textContent;
+                    if (roadNumber && !locationsArray.includes(roadNumber)) {
+                        locationsArray.push(roadNumber);
+                    }
+                    const locationNames = record.querySelectorAll("*|alertCLocationName *|value");
+                    locationNames.forEach(loc => {
+                        if (loc.textContent && !locationsArray.includes(loc.textContent)) {
+                            locationsArray.push(loc.textContent);
+                        }
+                    });
+                });
+
+                // Formatage des dates d'exploitation
                 const formatDate = (isoStr) => isoStr ? new Date(isoStr).toLocaleString('fr-FR').replace(',', '') : 'Non spécifiée';
+                const dateDebut = formatDate(startRaw);
+                const dateFin = formatDate(endRaw);
 
-                const typeRaw = record.getAttribute("xsi:type") || "";
-                let natureType = 'Alerte';
-                if (typeRaw.includes('Roadworks')) natureType = 'Travaux';
-                else if (typeRaw.includes('RoadDamage')) natureType = 'Accident';
-                else if (typeRaw.includes('Obstruction')) natureType = 'Fermeture';
+                // Construction des chaînes finales
+                const emplacementConcat = locationsArray.join(' / ') || "Lieu non spécifié";
+                const detailsConcat = detailsArray.join('\n') || "Pas de détails disponibles";
+                const coordonneesStr = (lat && lon) ? `${lat}, ${lon}` : "Non spécifiées";
+
+                // Titre demandé : "BFO-ID-(version) — Alerte"
+                const titreUnifie = `BFO-${sitId}-${sitVersion} — Alerte`;
+
+                // Assemblage du bloc textuel structuré pour le champ 'cross'
+                let chunks = [];
+                chunks.push(`TITRE: ${titreUnifie}`);
+                chunks.push(`Type: Alerte (${recordTypes.join(', ')})`);
+                chunks.push(`Impact: ${severity}`);
+                chunks.push(`Emplacement: ${emplacementConcat}`);
+                chunks.push(`Date début: ${dateDebut}`);
+                chunks.push(`Date Fin: ${dateFin}`);
+                chunks.push(`Détail: ${detailsConcat}`);
+                chunks.push(`\nMise à jour... : ${dateMiseAJour}`);
+                chunks.push(`Coordonnées: ${coordonneesStr}`);
 
                 alerts.push({
-                    id: `${deptCode}-${fullId}`, // Format structuré
-                    type: natureType,
-                    title: `Bison Futé — ${natureType}`,
-                    cross: `ID : ${fullId}\nType : ${natureType}\nDébut : ${formatDate(start)}\nFin : ${formatDate(end)}\n\nDétails :\n${desc}`,
-                    updated: formatDate(start),
-                    severity: natureType === 'Travaux' ? 'info' : 'warning',
+                    id: `${deptCode}-${sitId}_${sitVersion}`,
+                    type: 'Alerte',
+                    title: titreUnifie,
+                    cross: chunks.join('\n').trim(),
+                    updated: dateMiseAJour,
+                    severity: severity === 'high' ? 'danger' : 'warning',
                     lat: isNaN(lat) ? null : lat,
                     lon: isNaN(lon) ? null : lon,
                     docs: []
