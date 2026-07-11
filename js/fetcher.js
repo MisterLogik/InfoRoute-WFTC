@@ -205,32 +205,36 @@ async function fetchDatex2Data(deptCode, urls) {
     for (const url of urls) {
         try {
             const xmlText = await gmGetText(url);
-            console.log("XML reçu pour BFO :", xmlText ? "Succès" : "Échec"); // <--- AJOUTEZ CECI
-            
             if (!xmlText) continue;
 
             const parser = new DOMParser();
             const xmlDoc = parser.parseFromString(xmlText, "text/xml");
             
-            // On cible spécifiquement les situations (incidents/travaux)
-            const records = xmlDoc.querySelectorAll("situationRecord");
+            // UTILISATION DU SÉLECTEUR AVEC WILDCARD (*|tag) 
+            // pour ignorer le préfixe ns2: ou autre
+            const records = xmlDoc.querySelectorAll("*|situationRecord");
 
             records.forEach((record, index) => {
-                // Extraction sécurisée des nœuds avec fallback si namespace
-                const find = (tag) => record.getElementsByTagName(tag)[0]?.textContent || "";
+                // Fonction pour chercher n'importe quel tag peu importe le préfixe
+                const find = (tag) => record.querySelector(`*|${tag}`)?.textContent || "";
+                
+                // Recherche des coordonnées dans le bloc géographique
+                const latEl = record.querySelector("*|latitude");
+                const lonEl = record.querySelector("*|longitude");
+                const lat = parseFloat(latEl?.textContent);
+                const lon = parseFloat(lonEl?.textContent);
                 
                 const id = record.getAttribute("id") || index;
-                const lat = parseFloat(record.getElementsByTagName("latitude")[0]?.textContent);
-                const lon = parseFloat(record.getElementsByTagName("longitude")[0]?.textContent);
-                
-                const desc = find("comment") || find("situationRecordCreationReference");
                 const start = find("overallStartTime");
                 const end = find("overallEndTime");
+                
+                // Extraction du commentaire (le texte est souvent imbriqué dans values -> value)
+                const desc = find("value") || "Pas de description disponible";
                 
                 // Normalisation date
                 const formatDate = (isoStr) => isoStr ? new Date(isoStr).toLocaleString('fr-FR').replace(',', '') : 'Non spécifiée';
 
-                // Typage intelligent (Bison Futé utilise souvent des balises 'type')
+                // Typage intelligent via l'attribut xsi:type
                 const typeRaw = record.getAttribute("xsi:type") || "";
                 let natureType = 'Alerte';
                 if (typeRaw.includes('Roadworks')) natureType = 'Travaux';
@@ -240,8 +244,8 @@ async function fetchDatex2Data(deptCode, urls) {
                 alerts.push({
                     id: `${deptCode}-${id}`,
                     type: natureType,
-                    title: `Bison Futé — ${natureType} (National)`,
-                    cross: `Type : ${natureType}\nDébut : ${formatDate(start)}\nFin : ${formatDate(end)}\n\nDétails :\n${cleanText(desc)}`,
+                    title: `Bison Futé — ${natureType}`,
+                    cross: `Type : ${natureType}\nDébut : ${formatDate(start)}\nFin : ${formatDate(end)}\n\nDétails :\n${desc}`,
                     updated: formatDate(start),
                     severity: natureType === 'Travaux' ? 'info' : 'warning',
                     lat: isNaN(lat) ? null : lat,
@@ -249,13 +253,13 @@ async function fetchDatex2Data(deptCode, urls) {
                     docs: []
                 });
             });
+            console.log(`Bison Futé : ${alerts.length} alertes extraites pour ${deptCode}`);
         } catch (err) {
-            console.warn(`Erreur parsing XML pour ${deptCode}:`, err);
+            console.error(`Erreur parsing XML pour ${deptCode}:`, err);
         }
     }
     return alerts;
 }
-
 // --- UTILS : Nettoyage et requêtes ---
 function cleanText(str) {
     if (!str) return '';
