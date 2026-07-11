@@ -210,31 +210,29 @@ async function fetchDatex2Data(deptCode, urls) {
             const parser = new DOMParser();
             const xmlDoc = parser.parseFromString(xmlText, "text/xml");
             
-            // UTILISATION DU SÉLECTEUR AVEC WILDCARD (*|tag) 
-            // pour ignorer le préfixe ns2: ou autre
             const records = xmlDoc.querySelectorAll("*|situationRecord");
 
-            records.forEach((record, index) => {
+            records.forEach((record) => {
                 // Fonction pour chercher n'importe quel tag peu importe le préfixe
                 const find = (tag) => record.querySelector(`*|${tag}`)?.textContent || "";
                 
-                // Recherche des coordonnées dans le bloc géographique
-                const latEl = record.querySelector("*|latitude");
-                const lonEl = record.querySelector("*|longitude");
-                const lat = parseFloat(latEl?.textContent);
-                const lon = parseFloat(lonEl?.textContent);
+                // Récupération de l'ID et de la Version
+                const id = record.getAttribute("id") || "unknown";
+                const version = record.getAttribute("version") || "v1";
+                const fullId = `${id}_${version}`;
                 
-                const id = record.getAttribute("id") || index;
+                // Coordonnées
+                const lat = parseFloat(record.querySelector("*|latitude")?.textContent);
+                const lon = parseFloat(record.querySelector("*|longitude")?.textContent);
+                
                 const start = find("overallStartTime");
                 const end = find("overallEndTime");
                 
-                // Extraction du commentaire (le texte est souvent imbriqué dans values -> value)
-                const desc = find("value") || "Pas de description disponible";
+                // Extraction optimisée du commentaire public
+                const desc = record.querySelector("*|generalPublicComment *|value")?.textContent || "Pas de description disponible";
                 
-                // Normalisation date
                 const formatDate = (isoStr) => isoStr ? new Date(isoStr).toLocaleString('fr-FR').replace(',', '') : 'Non spécifiée';
 
-                // Typage intelligent via l'attribut xsi:type
                 const typeRaw = record.getAttribute("xsi:type") || "";
                 let natureType = 'Alerte';
                 if (typeRaw.includes('Roadworks')) natureType = 'Travaux';
@@ -242,10 +240,10 @@ async function fetchDatex2Data(deptCode, urls) {
                 else if (typeRaw.includes('Obstruction')) natureType = 'Fermeture';
 
                 alerts.push({
-                    id: `${deptCode}-${id}`,
+                    id: `${deptCode}-${fullId}`, // Format structuré
                     type: natureType,
                     title: `Bison Futé — ${natureType}`,
-                    cross: `Type : ${natureType}\nDébut : ${formatDate(start)}\nFin : ${formatDate(end)}\n\nDétails :\n${desc}`,
+                    cross: `ID : ${fullId}\nType : ${natureType}\nDébut : ${formatDate(start)}\nFin : ${formatDate(end)}\n\nDétails :\n${desc}`,
                     updated: formatDate(start),
                     severity: natureType === 'Travaux' ? 'info' : 'warning',
                     lat: isNaN(lat) ? null : lat,
@@ -253,13 +251,13 @@ async function fetchDatex2Data(deptCode, urls) {
                     docs: []
                 });
             });
-            console.log(`Bison Futé : ${alerts.length} alertes extraites pour ${deptCode}`);
         } catch (err) {
             console.error(`Erreur parsing XML pour ${deptCode}:`, err);
         }
     }
     return alerts;
 }
+
 // --- UTILS : Nettoyage et requêtes ---
 function cleanText(str) {
     if (!str) return '';
