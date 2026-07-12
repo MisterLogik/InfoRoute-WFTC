@@ -519,8 +519,8 @@ function renderGridView(alerts) {
             if (alert.latEnd && alert.lonEnd) {
                 coordsBlockHtml = `
                     <div class="date-coords" style="margin-bottom: 4px; color: #aaa; line-height: 1.4;">
-                        <strong>📍 Début (WME Link) :</strong> ${Number(alert.lat).toFixed(5)}, ${Number(alert.lon).toFixed(5)}<br/>
-                        <strong>🏁 Direction / Fin :</strong> ${Number(alert.latEnd).toFixed(5)}, ${Number(alert.lonEnd).toFixed(5)}
+                        <strong>📍 Début :</strong> ${Number(alert.lat).toFixed(5)}, ${Number(alert.lon).toFixed(5)}<br/>
+                        <strong>🏁 Fin :</strong> ${Number(alert.latEnd).toFixed(5)}, ${Number(alert.lonEnd).toFixed(5)}
                     </div>
                 `;
             } else {
@@ -582,7 +582,7 @@ function renderGridView(alerts) {
                 <div><strong>Emplacement:</strong> ${emplacementInfo}</div>
                 <div><strong>Date Début:</strong> ${dateDebut}</div>
                 ${dateFin ? `<div><strong>Date Fin:</strong> ${dateFin}</div>` : ''}
-                <div><strong>Source:</strong> <span style="background: rgba(2, 136, 209, 0.2); color: #81d4fa; padding: 1px 5px; border-radius: 4px; font-weight: 600; font-size: 0.75rem;">${sourceInfo}</span></div>
+                <div><strong>Source:</strong> ${sourceInfo}</div>
             </div>
             
             <div class="card-body" style="font-size: 0.8rem; line-height: 1.35; margin-bottom: 12px; text-align: left; padding: 0; width: 100%;">
