@@ -573,7 +573,7 @@ function renderGridView(alerts) {
                 <div><strong>Emplacement:</strong> ${emplacementInfo}</div>
                 <div><strong>Date Début:</strong> ${dateDebut}</div>
                 ${dateFin ? `<div><strong>Date Fin:</strong> ${dateFin}</div>` : ''}
-                <div><strong>Source:</strong> <span style="background: rgba(2, 136, 209, 0.2); color: #81d4fa; padding: 1px 5px; border-radius: 4px; font-weight: 600; font-size: 0.75rem;">${sourceInfo}</span></div>
+                <div><strong>Source:</strong> ${sourceInfo}</div>
             </div>
             
             <div class="card-body" style="font-size: 0.8rem; line-height: 1.35; margin-bottom: 12px; text-align: left; padding: 0; width: 100%;">
