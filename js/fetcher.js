@@ -19,10 +19,6 @@ export async function fetchDeptData(deptCode) {
 }
 
 // --- MOTEUR UNIVERSEL : Flux GeoJSON standard & Turbolead (GET) ---
-Voici uniquement la fonction fetchGeojsonData mise à jour pour gérer le cas des GeometryCollection contenant un MultiLineString ou LineString :
-
-JavaScript
-// --- NOUVEAU MOTEUR UNIVERSEL : Flux GeoJSON standard & Turbolead (GET) ---
 async function fetchGeojsonData(deptCode, urls) {
     let alerts = [];
     
