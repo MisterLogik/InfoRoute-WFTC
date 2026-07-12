@@ -259,7 +259,7 @@ function renderAlerts() {
     const selectedType = filterType ? filterType.value : 'all';
     const selectedSeverity = filterSeverity ? filterSeverity.value : 'all';
     const isShowBlacklistChecked = filterShowBlacklist ? filterShowBlacklist.checked : false;
-    const isHasDocChecked = filterHasDoc ? filterHasDoc.checked : false;
+    const isHasDocChecked = filterHasDoc ? filterHasDoc.checked : false; // Ajout Waze
 
     const currentOnly = filterCurrentOnly ? filterCurrentOnly.checked : false;
     const dateTarget = filterDateTarget ? filterDateTarget.value : 'start'; // 'start' ou 'end'
@@ -267,11 +267,8 @@ function renderAlerts() {
     const dateMaxStr = filterDateMax ? filterDateMax.value : '';
 
     const now = new Date();
-    //const oneYearAgo = new Date();
-    //oneYearAgo.setFullYear(now.getFullYear() - 1); 
     const oneYearAgo = new Date(now.getFullYear() - 1, 0, 1, 0, 0, 0, 0);
     
-
     // 1. Filtrage général (conserve la blacklist pour les stats globales)
     let filtered = window.ALL_ALERTS.filter(alert => {
         const titleLower = alert.title.toLowerCase();
@@ -301,7 +298,6 @@ function renderAlerts() {
                                    combinedText.includes('barrée');
 
         const hasAlternatKeywords = combinedText.includes('alternat') || 
-                                    //combinedText.includes('restriction') || 
                                     combinedText.includes('voie impactée') || 
                                     combinedText.includes('circulation alternée');
 
@@ -320,7 +316,7 @@ function renderAlerts() {
 
         // 1. On vérifie d'abord la blacklist et l'obsolescence de manière PRIORITAIRE
         const isBlacklisted = BLACKLIST_KEYWORDS.some(kw => 
-            titleLower.includes(kw.toLowerCase()) /*|| detailLower.includes(kw.toLowerCase())*/
+            titleLower.includes(kw.toLowerCase())
         );
         
         if (isBlacklisted || (alertStartDate && alertStartDate < oneYearAgo)) {
@@ -329,7 +325,6 @@ function renderAlerts() {
         // 2. Si l'alerte n'est pas blacklistée, on applique le reste de la logique
         else if (calculatedType === 'Fermeture') {
             const hasAlternatConflict = combinedText.includes('alternat') || 
-                                        //combinedText.includes('restriction') || 
                                         combinedText.includes('voie impactée') || 
                                         combinedText.includes('circulation alternée');
             
@@ -343,6 +338,9 @@ function renderAlerts() {
         }
 
         alert.computedSeverity = severity;
+
+        // --- FILTRE DOCUMENTS (Ajout Waze) ---
+        if (isHasDocChecked && (!alert.docs || alert.docs.length === 0)) return false;
 
         // --- FILTRES TEXTE, DEPT, NATURE & SEVERITE CIBLE ---
         const matchSearch = titleLower.includes(searchQuery) || crossLower.includes(searchQuery);
@@ -476,14 +474,13 @@ function renderGridView(alerts) {
         let emplacementInfo = alert.title;
         if (alert.title.includes(' — ')) {
             const parts = alert.title.split(' — ');
-            // Si on a un format "Nature — Axe — Commune", on garde "Axe — Commune"
             emplacementInfo = parts.slice(1).join(' — ');
         } else if (alert.title.includes(' - ')) {
             const parts = alert.title.split(' - ');
             emplacementInfo = parts.slice(1).join(' - ');
         }
 
-        // Récupération de la source (soit depuis l'objet direct, soit extraite de cross)
+        // Récupération de la source (Ajout Waze)
         let sourceInfo = alert.source || "Non spécifiée";
         if (sourceInfo === "Non spécifiée" && alert.cross) {
             const matchSource = alert.cross.match(/Source\s*:\s*([^\n]+)/i);
@@ -494,6 +491,7 @@ function renderGridView(alerts) {
         let coordsBlockHtml = ''; 
         let docsBlockHtml = '';
 
+        // Documents Waze
         if (alert.docs && alert.docs.length > 0) {
             docsBlockHtml = `
                 <div class="card-docs" style="margin-top: 10px; display: flex; flex-direction: column; gap: 5px;">
@@ -506,6 +504,7 @@ function renderGridView(alerts) {
             `;
         }
         
+        // Coordonnées Waze & WME Buttons
         if (alert.lat && alert.lon) {
             const wmeProd = `https://waze.com/fr/editor?env=row&lat=${alert.lat}&lon=${alert.lon}&zoomLevel=19`;
             const wmeBeta = `https://beta.waze.com/fr/editor?env=row&lat=${alert.lat}&lon=${alert.lon}&zoomLevel=19`;
@@ -516,11 +515,21 @@ function renderGridView(alerts) {
                 </div>
             `;
             
-            coordsBlockHtml = `
-                <div class="date-coords" style="margin-bottom: 4px; color: #aaa;">
-                    <strong>Coordonnées :</strong> ${Number(alert.lat).toFixed(5)}, ${Number(alert.lon).toFixed(5)}
-                </div>
-            `;
+            // Logique d'affichage LineString vs Point
+            if (alert.latEnd && alert.lonEnd) {
+                coordsBlockHtml = `
+                    <div class="date-coords" style="margin-bottom: 4px; color: #aaa; line-height: 1.4;">
+                        <strong>📍 Début (WME Link) :</strong> ${Number(alert.lat).toFixed(5)}, ${Number(alert.lon).toFixed(5)}<br/>
+                        <strong>🏁 Direction / Fin :</strong> ${Number(alert.latEnd).toFixed(5)}, ${Number(alert.lonEnd).toFixed(5)}
+                    </div>
+                `;
+            } else {
+                coordsBlockHtml = `
+                    <div class="date-coords" style="margin-bottom: 4px; color: #aaa;">
+                        <strong>Coordonnées :</strong> ${Number(alert.lat).toFixed(5)}, ${Number(alert.lon).toFixed(5)}
+                    </div>
+                `;
+            }
         }
 
         const detectedTags = [];
@@ -620,6 +629,7 @@ function renderTableView(alerts) {
 
         const isBl = alert.computedSeverity === 'blacklist';
         const displayCross = isBl ? '<span style="color:var(--text-muted); font-style:italic;">Masqué / Archivage de sécurité</span>' : alert.cross;
+        const sourceInfo = alert.source || "Inconnue";
 
         rowsHtml += `
             <tr class="${severityClass}">
@@ -630,6 +640,7 @@ function renderTableView(alerts) {
                     <div style="font-size:0.75rem; color:#aaa; max-width:40px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
                         ${displayCross}
                     </div>
+                    <div style="font-size:0.7rem; color:#81d4fa; margin-top:2px;">Src: ${sourceInfo}</div>
                 </td>
                 <td style="font-size:0.75rem; white-space:nowrap;">${formatDisplayDate(alert.updated)}</td>
                 <td>${actionsHtml}</td>
