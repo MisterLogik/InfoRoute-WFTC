@@ -18,7 +18,7 @@ export async function fetchDeptData(deptCode) {
     return [];
 }
 
-// --- NOUVEAU MOTEUR UNIVERSEL : Flux GeoJSON standard & Turbolead (GET) ---
+// --- MOTEUR UNIVERSEL : Flux GeoJSON standard & Turbolead (GET) ---
 async function fetchGeojsonData(deptCode, urls) {
     let alerts = [];
     
@@ -31,22 +31,35 @@ async function fetchGeojsonData(deptCode, urls) {
                 const props = feature.properties || {};
                 const geom = feature.geometry || {};
                 
-                // 1. Extraction des coordonnées géographiques
+                // 1. Extraction des coordonnées géographiques (Début et Fin si LineString)
                 let lat = null, lon = null;
+                let latEnd = null, lonEnd = null;
+
                 if (geom.type === 'Point' && Array.isArray(geom.coordinates)) {
                     lon = parseFloat(geom.coordinates[0]);
                     lat = parseFloat(geom.coordinates[1]);
-                } else if ((geom.type === 'LineString' || geom.type === 'MultiPoint') && Array.isArray(geom.coordinates) && geom.coordinates[0]) {
+                } else if ((geom.type === 'LineString' || geom.type === 'MultiPoint') && Array.isArray(geom.coordinates) && geom.coordinates.length > 0) {
+                    // Premier point (Origine)
                     const firstPt = Array.isArray(geom.coordinates[0][0]) ? geom.coordinates[0][0] : geom.coordinates[0];
-                    lon = parseFloat(firstPt[0]);
-                    lat = parseFloat(firstPt[1]);
+                    if (firstPt) {
+                        lon = parseFloat(firstPt[0]);
+                        lat = parseFloat(firstPt[1]);
+                    }
+                    
+                    // Dernier point (Direction / Fin) pour les LineString
+                    if (geom.type === 'LineString' && geom.coordinates.length > 1) {
+                        const lastPt = geom.coordinates[geom.coordinates.length - 1];
+                        if (lastPt && Array.isArray(lastPt)) {
+                            lonEnd = parseFloat(lastPt[0]);
+                            latEnd = parseFloat(lastPt[1]);
+                        }
+                    }
                 }
 
                 // 2. Récupération ou découpage intelligent de l'axe et de la commune
                 let axe = props.axe || props.route || props.Axe || props.route_libelle || '';
                 let commune = props.commune || props.ville || props.Commune || '';
                 
-                // Si Turbolead fournit un titre composite (ex: "RD 251 - THUSY - Info travaux")
                 if (props.titre && (!axe || !commune)) {
                     const parts = props.titre.split(/\s*-\s*/);
                     if (parts.length >= 2) {
@@ -55,7 +68,7 @@ async function fetchGeojsonData(deptCode, urls) {
                     }
                 }
 
-                // 3. Déduction intelligente de la Nature et de l'Impact via analyse de texte
+                // 3. Déduction de la Nature et de l'Impact via analyse de texte
                 const description = props.description || props.texte || props.commentaire || props.Commentaire || '';
                 const scanZone = `${props.titre || ''} ${description}`.toLowerCase();
                 
@@ -66,10 +79,8 @@ async function fetchGeojsonData(deptCode, urls) {
                     natureType = 'Fermeture';
                 } else if (scanZone.includes('accident') || scanZone.includes('collision')) {
                     natureType = 'Accident';
-                
                 } else if (scanZone.includes('incendie') || scanZone.includes('feu de') || scanZone.includes('feux de') || scanZone.includes('fumée')) {
                     natureType = 'Incendie';
-                
                 } else if (
                     scanZone.includes('neige') || scanZone.includes('verglas') || scanZone.includes('chasseneige') || 
                     scanZone.includes('hivernal') || scanZone.includes('tempête') || scanZone.includes('vent ') || 
@@ -77,7 +88,6 @@ async function fetchGeojsonData(deptCode, urls) {
                     scanZone.includes('viabilité') || scanZone.includes('météo')
                 ) {
                     natureType = 'Météo';
-                    
                 } else if (scanZone.includes('manifestation') || scanZone.includes('sportive')) {
                     natureType = 'Manifestation';
                 } else if (scanZone.includes('bouchon') || scanZone.includes('ralentissement')) {
@@ -93,29 +103,38 @@ async function fetchGeojsonData(deptCode, urls) {
                     impact = 'Alternat';
                 }
 
-                // 4. Reconstruction du Titre au format standardisé "Nature — Axe — Commune"
+                // 4. Extraction dynamique de la Source (ex: Dép 25, SDIS, etc.)
+                let sourceCalculated = props.source || props.Source || props.origine || '';
+                if (!sourceCalculated) {
+                    // Recherche de patterns textuels si non fourni explicitement
+                    if (scanZone.includes('sdis')) sourceCalculated = 'SDIS';
+                    else if (scanZone.includes('corg')) sourceCalculated = 'CORG';
+                    else if (scanZone.includes('gendarmerie')) sourceCalculated = 'Gendarmerie';
+                }
+
+                // 5. Reconstruction du Titre au format standardisé
                 const titreUnifie = [natureType, axe, commune].filter(Boolean).join(' — ') || props.titre || `Événement #${deptCode}-${index}`;
 
-                // 5. Normalisation des dates (Gestion du format "JJ/MM/AA HH:MM" de Turbolead)
+                // 6. Normalisation des dates
                 const dateDebRaw = props.date_evt_debut || props.date_deb || props.debut || props.Debut || '';
                 const dateFinRaw = props.date_evt_fin || props.date_fin || props.fin || props.Fin || '';
 
                 const formatYear = (str) => {
                     if (!str) return '';
-                    // Transforme "JJ/MM/AA" en "JJ/MM/20AA" si l'année n'a que 2 chiffres
                     return str.replace(/(\d{2})\/(\d{2})\/(\d{2})(\s+|\b)/g, '$1/$2/20$3$4').trim();
                 };
 
                 const dateDebut = formatYear(dateDebRaw) || 'Non spécifiée';
                 const dateFin = formatYear(dateFinRaw);
 
-                // 6. Assemblage du bloc textuel attendu par app.js
+                // 7. Assemblage du bloc textuel interne
                 let chunks = [];
                 chunks.push(`Type : ${natureType}`);
                 chunks.push(`Impact : ${impact}`);
                 if (props.location || props.lieu) chunks.push(`Lieu : ${props.location || props.lieu}`);
                 chunks.push(`Début : ${dateDebut}`);
                 if (dateFin) chunks.push(`Fin : ${dateFin}`);
+                if (sourceCalculated) chunks.push(`Source : ${sourceCalculated}`);
                 if (description) chunks.push(`\nDétails :\n${cleanText(description)}`);
 
                 alerts.push({
@@ -127,7 +146,10 @@ async function fetchGeojsonData(deptCode, urls) {
                     severity: 'info', 
                     lat: isNaN(lat) ? null : lat,
                     lon: isNaN(lon) ? null : lon,
-                    docs: props.docs || [] // FIX : Sauvegarde des documents joints
+                    latEnd: isNaN(latEnd) ? null : latEnd,
+                    lonEnd: isNaN(lonEnd) ? null : lonEnd,
+                    source: sourceCalculated || null,
+                    docs: props.docs || []
                 });
             });
         } catch (err) {
@@ -171,6 +193,7 @@ async function fetchSavoieApiData(deptCode, apiBaseUrl) {
                     if (d.FRTrafficConstrictionType && d.FRTrafficConstrictionType !== "null") chunks.push(`Impact : ${d.FRTrafficConstrictionType.trim()}`);
                     if (d.Debut) chunks.push(`Début : ${new Date(d.Debut).toLocaleString('fr-FR')}`);
                     if (d.Fin) chunks.push(`Fin : ${new Date(d.Fin).toLocaleString('fr-FR')}`);
+                    chunks.push(`Source : Département 73`);
                     
                     const commBrut = d.Commentaire || item.commentaire;
                     if (commBrut && commBrut !== "null") chunks.push(`\nDétails :\n${cleanText(commBrut)}`);
@@ -185,7 +208,8 @@ async function fetchSavoieApiData(deptCode, apiBaseUrl) {
                         updated: d.Debut || "Récemment",
                         severity: catConfig.severity,
                         lat: isNaN(lat) ? null : lat,
-                        lon: isNaN(lon) ? null : lon
+                        lon: isNaN(lon) ? null : lon,
+                        source: "Département 73"
                     });
                 } catch (err) {
                     console.warn(`Erreur détails alerte Savoie #${item.idtInfo}`, err);
@@ -209,22 +233,14 @@ async function fetchDatex2Data(deptCode, urls) {
 
             const parser = new DOMParser();
             const xmlDoc = parser.parseFromString(xmlText, "text/xml");
-            
-            // On cible d'abord les situations globales
             const situations = xmlDoc.querySelectorAll("*|situation");
 
             situations.forEach((situation) => {
                 const sitId = situation.getAttribute("id") || "unknown";
                 const sitVersion = situation.getAttribute("version") || "1";
-                
-                // Date de mise à jour globale de la situation
                 const versionTimeRaw = situation.querySelector("*|situationVersionTime")?.textContent;
                 const dateMiseAJour = versionTimeRaw ? new Date(versionTimeRaw).toLocaleString('fr-FR').replace(',', '') : 'Non spécifiée';
-
-                // Recherche de la sévérité globale (Impact)
                 const severity = situation.querySelector("*|overallSeverity")?.textContent || "Non spécifié";
-
-                // Exploration des sous-records de la situation
                 const records = situation.querySelectorAll("*|situationRecord");
                 
                 let startRaw = "";
@@ -236,44 +252,33 @@ async function fetchDatex2Data(deptCode, urls) {
                 let recordTypes = [];
 
                 records.forEach((record) => {
-                    // 1. Extraction des dates
                     if (!startRaw) startRaw = record.querySelector("*|overallStartTime")?.textContent || "";
                     if (!endRaw) endRaw = record.querySelector("*|overallEndTime")?.textContent || "";
 
-                    // 2. Extraction du type de record
                     const typeRaw = record.getAttribute("xsi:type") || "";
                     if (typeRaw) {
                         const cleanType = typeRaw.replace("ns2:", "");
                         if (!recordTypes.includes(cleanType)) recordTypes.push(cleanType);
                     }
 
-                    // 3. Accumulation des commentaires (Détails)
                     const comments = record.querySelectorAll("*|generalPublicComment");
                     comments.forEach(comment => {
                         const val = comment.querySelector("*|value")?.textContent;
                         const cType = comment.querySelector("*|commentType")?.textContent;
                         if (val && !detailsArray.includes(val)) {
-                            if (cType === "description") {
-                                detailsArray.unshift(val); 
-                            } else {
-                                detailsArray.push(val);
-                            }
+                            if (cType === "description") detailsArray.unshift(val); 
+                            else detailsArray.push(val);
                         }
                     });
 
-                    // 4. Extraction des périodes spécifiques (ex: "Uniquement de nuit")
                     const periodName = record.querySelector("*|validPeriod *|value")?.textContent;
                     if (periodName && !detailsArray.includes(periodName)) {
                         detailsArray.push(`Période : ${periodName}`);
                     }
 
-                    // 5. Extraction des descriptions d'itinéraire de déviation
                     const itinerary = record.querySelector("*|reroutingItineraryDescription *|value")?.textContent;
-                    if (itinerary) {
-                        detailsArray.push(`Déviation : ${itinerary}`);
-                    }
+                    if (itinerary) detailsArray.push(`Déviation : ${itinerary}`);
 
-                    // 6. Extraction des coordonnées géographiques
                     if (lat === null || lon === null) {
                         const fromPoint = record.querySelector("*|from *|pointCoordinates");
                         if (fromPoint) {
@@ -289,44 +294,34 @@ async function fetchDatex2Data(deptCode, urls) {
                         }
                     }
 
-                    // 7. Extraction distincte de la route (Axe) et de la ville (Commune)
                     const roadNumber = record.querySelector("*|roadNumber")?.textContent;
-                    if (roadNumber && !roadsArray.includes(roadNumber)) {
-                        roadsArray.push(roadNumber);
-                    }
+                    if (roadNumber && !roadsArray.includes(roadNumber)) roadsArray.push(roadNumber);
                     
                     const locationNames = record.querySelectorAll("*|alertCLocationName *|value");
                     locationNames.forEach(loc => {
-                        if (loc.textContent && !townsArray.includes(loc.textContent)) {
-                            townsArray.push(loc.textContent);
-                        }
+                        if (loc.textContent && !townsArray.includes(loc.textContent)) townsArray.push(loc.textContent);
                     });
                 });
 
-                // Formatage des dates
                 const formatDate = (isoStr) => isoStr ? new Date(isoStr).toLocaleString('fr-FR').replace(',', '') : 'Non spécifiée';
                 const dateDebut = formatDate(startRaw);
                 const dateFin = formatDate(endRaw);
 
-                // Construction des chaînes de localisation
                 const axeRoutier = roadsArray.join(', ') || "Axe inconnu";
                 const communesConcat = townsArray.join(' / ') || "Lieu inconnu";
                 const emplacementConcat = `${axeRoutier} — ${communesConcat}`;
-                
                 const detailsConcat = detailsArray.join('\n') || "Pas de détails disponibles";
 
-                // Format strict pour s'adapter au split(' — ') de app.js : "Nature — Axe — Commune"
-                // On met l'identifiant BFO unique au début comme type/nature pour l'UI
                 const prefixBFO = `BFO-${sitId}-${sitVersion}`;
                 const titreUnifie = `${prefixBFO} — ${axeRoutier} — ${communesConcat}`;
 
-                // Reconstitution du bloc textuel interne
                 let crossChunks = [];
                 crossChunks.push(`Type : Alerte (${recordTypes.join(', ')})`);
                 crossChunks.push(`Impact : ${severity}`);
                 crossChunks.push(`Emplacement : ${emplacementConcat}`);
                 crossChunks.push(`Début : ${dateDebut}`);
                 if (startRaw !== endRaw && endRaw) crossChunks.push(`Fin : ${dateFin}`);
+                crossChunks.push(`Source : Bison Futé`);
                 crossChunks.push(`\nDétails :\n${detailsConcat}`);
 
                 alerts.push({
@@ -338,8 +333,9 @@ async function fetchDatex2Data(deptCode, urls) {
                     severity: severity === 'high' ? 'danger' : 'warning',
                     lat: isNaN(lat) ? null : lat,
                     lon: isNaN(lon) ? null : lon,
-                    axe: axeRoutier,       // Ajout explicite pour app.js
-                    commune: communesConcat, // Ajout explicite pour app.js
+                    source: "Bison Futé",
+                    axe: axeRoutier,       
+                    commune: communesConcat, 
                     docs: []
                 });
             });
@@ -350,7 +346,7 @@ async function fetchDatex2Data(deptCode, urls) {
     return alerts;
 }
 
-// --- UTILS : Nettoyage et requêtes ---
+// --- UTILS ---
 function cleanText(str) {
     if (!str) return '';
     return String(str)
@@ -380,7 +376,6 @@ function gmPostJson(url, body) {
     });
 }
 
-// Nouvelle fonction utilitaire pour envoyer des requêtes GET via le proxy
 function gmGetJson(url) {
     const proxiedUrl = `${PROXY_URL}?url=${encodeURIComponent(url)}`;
     return fetch(proxiedUrl, {
