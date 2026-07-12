@@ -238,7 +238,7 @@ async function fetchSavoieApiData(deptCode, apiBaseUrl) {
     return alerts;
 }
 
-// --- MOTEUR AMÉLIORÉ : Flux XML Datex II (Bison Futé National) ---
+// --- MOTEUR AMÉLIORÉ : Flux XML Datex II (BFO) ---
 async function fetchDatex2Data(deptCode, urls) {
     let alerts = [];
     
@@ -337,7 +337,7 @@ async function fetchDatex2Data(deptCode, urls) {
                 crossChunks.push(`Emplacement : ${emplacementConcat}`);
                 crossChunks.push(`Début : ${dateDebut}`);
                 if (startRaw !== endRaw && endRaw) crossChunks.push(`Fin : ${dateFin}`);
-                crossChunks.push(`Source : Bison Futé`);
+                crossChunks.push(`Source : BFO`);
                 crossChunks.push(`\nDétails :\n${detailsConcat}`);
 
                 alerts.push({
@@ -349,7 +349,7 @@ async function fetchDatex2Data(deptCode, urls) {
                     severity: severity === 'high' ? 'danger' : 'warning',
                     lat: isNaN(lat) ? null : lat,
                     lon: isNaN(lon) ? null : lon,
-                    source: "Bison Futé",
+                    source: "BFO",
                     axe: axeRoutier,       
                     commune: communesConcat, 
                     docs: []
