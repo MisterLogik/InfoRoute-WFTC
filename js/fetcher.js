@@ -19,6 +19,10 @@ export async function fetchDeptData(deptCode) {
 }
 
 // --- MOTEUR UNIVERSEL : Flux GeoJSON standard & Turbolead (GET) ---
+Voici uniquement la fonction fetchGeojsonData mise à jour pour gérer le cas des GeometryCollection contenant un MultiLineString ou LineString :
+
+JavaScript
+// --- NOUVEAU MOTEUR UNIVERSEL : Flux GeoJSON standard & Turbolead (GET) ---
 async function fetchGeojsonData(deptCode, urls) {
     let alerts = [];
     
@@ -29,37 +33,62 @@ async function fetchGeojsonData(deptCode, urls) {
 
             geojson.features.forEach((feature, index) => {
                 const props = feature.properties || {};
-                const geom = feature.geometry || {};
+                let geom = feature.geometry || {};
                 
-                // 1. Extraction des coordonnées géographiques (Début et Fin si LineString)
+                // --- GESTION ET DESCENTE DANS LES GEOMETRYCOLLECTION (Spécifique Turbolead) ---
+                if (geom.type === 'GeometryCollection' && Array.isArray(geom.geometries)) {
+                    // On cherche en priorité une géométrie de type ligne
+                    const lineGeom = geom.geometries.find(g => g.type === 'MultiLineString' || g.type === 'LineString');
+                    // Si on trouve une ligne, on remplace la géométrie cible par celle-ci pour ignorer le Point isolé
+                    if (lineGeom) {
+                        geom = lineGeom;
+                    } else if (geom.geometries[0]) {
+                        // À défaut de ligne, on prend la première géométrie disponible
+                        geom = geom.geometries[0];
+                    }
+                }
+
+                // Extraction des coordonnées géographiques (Début et Fin potentielle)
                 let lat = null, lon = null;
                 let latEnd = null, lonEnd = null;
 
                 if (geom.type === 'Point' && Array.isArray(geom.coordinates)) {
                     lon = parseFloat(geom.coordinates[0]);
                     lat = parseFloat(geom.coordinates[1]);
-                } else if ((geom.type === 'LineString' || geom.type === 'MultiPoint') && Array.isArray(geom.coordinates) && geom.coordinates.length > 0) {
-                    // Premier point (Origine)
-                    const firstPt = Array.isArray(geom.coordinates[0][0]) ? geom.coordinates[0][0] : geom.coordinates[0];
-                    if (firstPt) {
+                } 
+                else if (geom.type === 'LineString' && Array.isArray(geom.coordinates) && geom.coordinates.length > 0) {
+                    const firstPt = geom.coordinates[0];
+                    const lastPt = geom.coordinates[geom.coordinates.length - 1];
+                    
+                    lon = parseFloat(firstPt[0]);
+                    lat = parseFloat(firstPt[1]);
+                    lonEnd = parseFloat(lastPt[0]);
+                    latEnd = parseFloat(lastPt[1]);
+                } 
+                else if (geom.type === 'MultiLineString' && Array.isArray(geom.coordinates) && geom.coordinates[0]) {
+                    // Dans un MultiLineString, les coordonnées sont un tableau de lignes (tableaux de points)
+                    const activeLine = geom.coordinates[0];
+                    if (Array.isArray(activeLine) && activeLine.length > 0) {
+                        const firstPt = activeLine[0];
+                        const lastPt = activeLine[activeLine.length - 1];
+                        
                         lon = parseFloat(firstPt[0]);
                         lat = parseFloat(firstPt[1]);
+                        lonEnd = parseFloat(lastPt[0]);
+                        latEnd = parseFloat(lastPt[1]);
                     }
-                    
-                    // Dernier point (Direction / Fin) pour les LineString
-                    if (geom.type === 'LineString' && geom.coordinates.length > 1) {
-                        const lastPt = geom.coordinates[geom.coordinates.length - 1];
-                        if (lastPt && Array.isArray(lastPt)) {
-                            lonEnd = parseFloat(lastPt[0]);
-                            latEnd = parseFloat(lastPt[1]);
-                        }
-                    }
+                } 
+                else if (geom.type === 'MultiPoint' && Array.isArray(geom.coordinates) && geom.coordinates[0]) {
+                    const firstPt = geom.coordinates[0];
+                    lon = parseFloat(firstPt[0]);
+                    lat = parseFloat(firstPt[1]);
                 }
 
                 // 2. Récupération ou découpage intelligent de l'axe et de la commune
                 let axe = props.axe || props.route || props.Axe || props.route_libelle || '';
                 let commune = props.commune || props.ville || props.Commune || '';
                 
+                // Si Turbolead fournit un titre composite (ex: "RD 251 - THUSY - Info travaux")
                 if (props.titre && (!axe || !commune)) {
                     const parts = props.titre.split(/\s*-\s*/);
                     if (parts.length >= 2) {
@@ -68,7 +97,7 @@ async function fetchGeojsonData(deptCode, urls) {
                     }
                 }
 
-                // 3. Déduction de la Nature et de l'Impact via analyse de texte
+                // 3. Déduction intelligente de la Nature et de l'Impact via analyse de texte
                 const description = props.description || props.texte || props.commentaire || props.Commentaire || '';
                 const scanZone = `${props.titre || ''} ${description}`.toLowerCase();
                 
@@ -103,38 +132,29 @@ async function fetchGeojsonData(deptCode, urls) {
                     impact = 'Alternat';
                 }
 
-                // 4. Extraction dynamique de la Source (ex: Dép 25, SDIS, etc.)
-                let sourceCalculated = props.source || props.Source || props.origine || '';
-                if (!sourceCalculated) {
-                    // Recherche de patterns textuels si non fourni explicitement
-                    if (scanZone.includes('sdis')) sourceCalculated = 'SDIS';
-                    else if (scanZone.includes('corg')) sourceCalculated = 'CORG';
-                    else if (scanZone.includes('gendarmerie')) sourceCalculated = 'Gendarmerie';
-                }
-
-                // 5. Reconstruction du Titre au format standardisé
+                // 4. Reconstruction du Titre au format standardisé "Nature — Axe — Commune"
                 const titreUnifie = [natureType, axe, commune].filter(Boolean).join(' — ') || props.titre || `Événement #${deptCode}-${index}`;
 
-                // 6. Normalisation des dates
+                // 5. Normalisation des dates (Gestion du format "JJ/MM/AA HH:MM" de Turbolead)
                 const dateDebRaw = props.date_evt_debut || props.date_deb || props.debut || props.Debut || '';
                 const dateFinRaw = props.date_evt_fin || props.date_fin || props.fin || props.Fin || '';
 
                 const formatYear = (str) => {
                     if (!str) return '';
+                    // Transforme "JJ/MM/AA" en "JJ/MM/20AA" si l'année n'a que 2 chiffres
                     return str.replace(/(\d{2})\/(\d{2})\/(\d{2})(\s+|\b)/g, '$1/$2/20$3$4').trim();
                 };
 
                 const dateDebut = formatYear(dateDebRaw) || 'Non spécifiée';
                 const dateFin = formatYear(dateFinRaw);
 
-                // 7. Assemblage du bloc textuel interne
+                // 6. Assemblage du bloc textuel attendu par app.js
                 let chunks = [];
                 chunks.push(`Type : ${natureType}`);
                 chunks.push(`Impact : ${impact}`);
                 if (props.location || props.lieu) chunks.push(`Lieu : ${props.location || props.lieu}`);
                 chunks.push(`Début : ${dateDebut}`);
                 if (dateFin) chunks.push(`Fin : ${dateFin}`);
-                if (sourceCalculated) chunks.push(`Source : ${sourceCalculated}`);
                 if (description) chunks.push(`\nDétails :\n${cleanText(description)}`);
 
                 alerts.push({
@@ -146,10 +166,10 @@ async function fetchGeojsonData(deptCode, urls) {
                     severity: 'info', 
                     lat: isNaN(lat) ? null : lat,
                     lon: isNaN(lon) ? null : lon,
-                    latEnd: isNaN(latEnd) ? null : latEnd,
-                    lonEnd: isNaN(lonEnd) ? null : lonEnd,
-                    source: sourceCalculated || null,
-                    docs: props.docs || []
+                    latEnd: isNaN(latEnd) ? null : latEnd, // Injecté pour l'UI de app.js
+                    lonEnd: isNaN(lonEnd) ? null : lonEnd, // Injecté pour l'UI de app.js
+                    source: props.source || "",            // Conserve la source si présente
+                    docs: props.docs || []                 // FIX : Sauvegarde des documents joints
                 });
             });
         } catch (err) {
