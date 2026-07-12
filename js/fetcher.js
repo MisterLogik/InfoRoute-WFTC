@@ -46,10 +46,11 @@ async function fetchGeojsonData(deptCode, urls) {
 
                 if (lat === null || lon === null || isNaN(lat) || isNaN(lon)) return;
 
-                // 2. Normalisation des données pour s'adapter à Inforoute25 et aux autres
-                const rawTitle = props.title || props.titre || props.nom || 'Alerte Routière';
+                // 2. Normalisation et extraction initiale des propriétés fondamentales
+                const rawTitle = (props.titre || props.title || props.nom || 'Alerte Routière').trim();
                 const description = props.description || props.texte || props.commune || 'Aucune description fournie.';
                 const rawSource = props.source || props.origine || 'Non spécifiée';
+                const chantier = (props.code_chantier || '').trim();
 
                 // Gestion des dates
                 let dateDebutStr = props.date_evt_debut || props.date_debut || props.dateDebut || '';
@@ -57,29 +58,25 @@ async function fetchGeojsonData(deptCode, urls) {
                 if (!dateDebutStr && props.date) dateDebutStr = props.date; 
 
                 // Gestion de la localisation (Axe / Ville)
-                // Inforoute25 met souvent tout dans "titre" (ex: "RD 663 VOUJEAUCOURT"), on va l'isoler si possible
                 let axe = props.axe || props.route || '';
                 let commune = props.commune || props.zone || '';
 
                 if (!axe && rawTitle) {
-                    // Si pas d'axe défini, on extrait le premier mot du titre (ex: "RD 663")
+                    // Extraction du premier mot du titre si c'est un axe (ex: "RD 663")
                     const matchAxe = rawTitle.match(/^(RM|RD|RN|A|Axe)\s*\d+[A-Z]?/i);
                     axe = matchAxe ? matchAxe[0] : rawTitle;
                 }
                 if (!commune && rawTitle && axe && rawTitle !== axe) {
-                    commune = rawTitle.replace(axe, '').trim();
+                    commune = rawTitle.replace(axe, '').replace(/[-\s—]+/g, ' ').trim();
                 }
 
+                // 3. Nettoyage de la nature de l'événement (ex: "AK5 Travaux" -> "Travaux")
                 let natureAlert = props.code || 'Alerte';
                 if (natureAlert.includes(' ')) {
-                    // Supprime le code de panneau/pictogramme (ex: "AK5 ", "AK14 ") pour ne garder que le texte propre
                     natureAlert = natureAlert.replace(/^[A-Z0-9]+\s+/i, '');
                 }
                 
-                // 2. Détermination de la base textuelle descriptive
-                const chantier = (props.code_chantier || '').trim();
-                const rawTitle = (props.titre || props.title || '').trim();
-                
+                // 4. Détermination de la base descriptive pour le titre court
                 let detailPlacement = '';
                 if (chantier) {
                     detailPlacement = chantier;
@@ -89,12 +86,10 @@ async function fetchGeojsonData(deptCode, urls) {
                     detailPlacement = props.zone || 'Lieu inconnu';
                 }
                 
-                // 3. Normalisation finale du titre au format attendu par app.js : "Nature — Détails"
-                // Ex 1 : "Travaux — RD 201 - Rénovation Mairie (VILLEDUBERT)"
-                // Ex 2 : "Travaux — RD 413 (PR1+0000 à 1+0850)"
+                // Concaténation harmonisée du titre final pour l'affichage de la carte
                 const finalTitle = `${natureAlert} — ${detailPlacement}`;
 
-                // 3. Détermination de la sévérité
+                // 5. Détermination de la sévérité
                 let severity = 'warning'; 
                 const textForSeverity = (rawTitle + ' ' + description).toLowerCase();
                 if (textForSeverity.includes('barrée') || textForSeverity.includes('fermé') || textForSeverity.includes('bloqué') || props.code === 'KC1_RBARREE') {
@@ -103,7 +98,7 @@ async function fetchGeojsonData(deptCode, urls) {
                     severity = 'warning';
                 }
 
-                // 4. Construction de la description globale 'cross'
+                // 6. Construction du bloc de texte 'cross' pour app.js
                 let crossChunks = [];
                 crossChunks.push(`Type : ${natureAlert}`);
                 crossChunks.push(`Impact : ${severity === 'danger' ? 'Bloquant' : 'Modéré'}`);
@@ -123,8 +118,8 @@ async function fetchGeojsonData(deptCode, urls) {
                     lon: parseFloat(lon),
                     axe: axe,
                     commune: commune,
-                    source: rawSource, // Sauvegarde de la source pour app.js
-                    docs: []
+                    source: rawSource,
+                    docs: props.docs || [] // Récupération des pièces jointes si existantes
                 });
             });
         } catch (err) {
