@@ -70,9 +70,29 @@ async function fetchGeojsonData(deptCode, urls) {
                     commune = rawTitle.replace(axe, '').trim();
                 }
 
-                // Format du titre normalisé attendu par app.js : "Nature — Axe — Commune"
-                const natureAlert = props.code_chantier || 'Alerte';
-                const finalTitle = `${natureAlert} — ${axe || 'Axe inconnu'} — ${commune || 'Lieu inconnu'}`;
+                let natureAlert = props.code || 'Alerte';
+                if (natureAlert.includes(' ')) {
+                    // Supprime le code de panneau/pictogramme (ex: "AK5 ", "AK14 ") pour ne garder que le texte propre
+                    natureAlert = natureAlert.replace(/^[A-Z0-9]+\s+/i, '');
+                }
+                
+                // 2. Détermination de la base textuelle descriptive
+                const chantier = (props.code_chantier || '').trim();
+                const rawTitle = (props.titre || props.title || '').trim();
+                
+                let detailPlacement = '';
+                if (chantier) {
+                    detailPlacement = chantier;
+                } else if (rawTitle) {
+                    detailPlacement = rawTitle;
+                } else {
+                    detailPlacement = props.zone || 'Lieu inconnu';
+                }
+                
+                // 3. Normalisation finale du titre au format attendu par app.js : "Nature — Détails"
+                // Ex 1 : "Travaux — RD 201 - Rénovation Mairie (VILLEDUBERT)"
+                // Ex 2 : "Travaux — RD 413 (PR1+0000 à 1+0850)"
+                const finalTitle = `${natureAlert} — ${detailPlacement}`;
 
                 // 3. Détermination de la sévérité
                 let severity = 'warning'; 
