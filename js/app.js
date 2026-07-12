@@ -447,6 +447,7 @@ function renderGridView(alerts) {
         let dateFin = "";
         let detailInfo = "Aucun détail complémentaire.";
 
+        // 1. Parsing du champ cross
         if (alert.cross) {
             const matchType = alert.cross.match(/Type\s*:\s*([^\n]+)/i);
             if (matchType) typeInfo = matchType[1].trim();
@@ -466,18 +467,27 @@ function renderGridView(alerts) {
             } else {
                 detailInfo = alert.cross.split('\n').filter(line => {
                     const l = line.toLowerCase().trim();
-                    return !l.startsWith('type :') && !l.startsWith('impact :') && !l.startsWith('début :') && !l.startsWith('fin :');
+                    return !l.startsWith('type :') && !l.startsWith('impact :') && !l.startsWith('début :') && !l.startsWith('fin :') && !l.startsWith('source :') && !l.startsWith('emplacement :');
                 }).join('\n').trim();
             }
         }
 
+        // 2. Sécurisation et nettoyage de l'emplacement
         let emplacementInfo = alert.title;
         if (alert.title.includes(' — ')) {
             const parts = alert.title.split(' — ');
+            // Si on a un format "Nature — Axe — Commune", on garde "Axe — Commune"
             emplacementInfo = parts.slice(1).join(' — ');
         } else if (alert.title.includes(' - ')) {
             const parts = alert.title.split(' - ');
             emplacementInfo = parts.slice(1).join(' - ');
+        }
+
+        // Récupération de la source (soit depuis l'objet direct, soit extraite de cross)
+        let sourceInfo = alert.source || "Non spécifiée";
+        if (sourceInfo === "Non spécifiée" && alert.cross) {
+            const matchSource = alert.cross.match(/Source\s*:\s*([^\n]+)/i);
+            if (matchSource) sourceInfo = matchSource[1].trim();
         }
 
         let wmeActionHtml = '';
@@ -563,6 +573,7 @@ function renderGridView(alerts) {
                 <div><strong>Emplacement:</strong> ${emplacementInfo}</div>
                 <div><strong>Date Début:</strong> ${dateDebut}</div>
                 ${dateFin ? `<div><strong>Date Fin:</strong> ${dateFin}</div>` : ''}
+                <div><strong>Source:</strong> <span style="background: rgba(2, 136, 209, 0.2); color: #81d4fa; padding: 1px 5px; border-radius: 4px; font-weight: 600; font-size: 0.75rem;">${sourceInfo}</span></div>
             </div>
             
             <div class="card-body" style="font-size: 0.8rem; line-height: 1.35; margin-bottom: 12px; text-align: left; padding: 0; width: 100%;">
