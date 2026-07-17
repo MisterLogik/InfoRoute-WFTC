@@ -228,7 +228,13 @@ async function synchronizeAll() {
     window.ALL_ALERTS = results.flat(); 
 
     localStorage.setItem('waze_tc_alerts', JSON.stringify(window.ALL_ALERTS));
-    const now = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    const now = new Date().toLocaleString('fr-FR', { 
+        day: '2-digit', 
+        month: '2-digit', 
+        year: 'numeric', 
+        hour: '2-digit', 
+        minute: '2-digit' 
+    });
     localStorage.setItem('waze_tc_last_sync', now);
 
     if (loader) loader.classList.add('hidden');
