@@ -465,23 +465,32 @@ function renderGridView(alerts) {
         if (alert.cross) {
             const matchType = alert.cross.match(/Type\s*:\s*([^\n]+)/i);
             if (matchType) typeInfo = matchType[1].trim();
-
+        
             const matchImpact = alert.cross.match(/Impact\s*:\s*([^\n]+)/i);
             if (matchImpact) impactInfo = matchImpact[1].trim();
-
+        
             const matchDeb = alert.cross.match(/Début\s*:\s*([^\n]+)/i);
             if (matchDeb) dateDebut = matchDeb[1].trim();
-
+        
             const matchFin = alert.cross.match(/Fin\s*:\s*([^\n]+)/i);
             if (matchFin) dateFin = matchFin[1].trim();
-
-            const matchDet = alert.cross.split(/Détails\s*:\s*/i);
-            if (matchDet[1]) {
+        
+            // Extraction propre des détails (gère "Détail :", "Détails :" et le pluriel)
+            const matchDet = alert.cross.match(/Détails?\s*:\s*([\s\S]*)$/i);
+            if (matchDet && matchDet[1]) {
                 detailInfo = matchDet[1].trim();
             } else {
+                // Plan B : Nettoyage ligne par ligne si la balise "Détails" est absente
                 detailInfo = alert.cross.split('\n').filter(line => {
                     const l = line.toLowerCase().trim();
-                    return !l.startsWith('type :') && !l.startsWith('impact :') && !l.startsWith('début :') && !l.startsWith('fin :') && !l.startsWith('source :') && !l.startsWith('emplacement :');
+                    // Utilisation de regex pour ne pas être bloqué par un espace ou un accent
+                    return !/^type\s*:/i.test(l) && 
+                           !/^impact\s*:/i.test(l) && 
+                           !/^début\s*:/i.test(l) && 
+                           !/^fin\s*:/i.test(l) && 
+                           !/^source\s*:/i.test(l) && 
+                           !/^emplacement\s*:/i.test(l) &&
+                           !/^lieu\s*:/i.test(l);
                 }).join('\n').trim();
             }
         }
