@@ -31,20 +31,17 @@ async function fetchGeojsonData(deptCode, urls) {
                 const props = feature.properties || {};
                 let geom = feature.geometry || {};
                 
-                // --- GESTION ET DESCENTE DANS LES GEOMETRYCOLLECTION (Spécifique Turbolead) ---
+                // --- GESTION ET DESCENTE DANS LES GEOMETRYCOLLECTION ---
                 if (geom.type === 'GeometryCollection' && Array.isArray(geom.geometries)) {
-                    // On cherche en priorité une géométrie de type ligne
                     const lineGeom = geom.geometries.find(g => g.type === 'MultiLineString' || g.type === 'LineString');
-                    // Si on trouve une ligne, on remplace la géométrie cible par celle-ci pour ignorer le Point isolé
                     if (lineGeom) {
                         geom = lineGeom;
                     } else if (geom.geometries[0]) {
-                        // À défaut de ligne, on prend la première géométrie disponible
                         geom = geom.geometries[0];
                     }
                 }
 
-                // Extraction des coordonnées géographiques (Début et Fin potentielle)
+                // Extraction des coordonnées géographiques
                 let lat = null, lon = null;
                 let latEnd = null, lonEnd = null;
 
@@ -55,19 +52,16 @@ async function fetchGeojsonData(deptCode, urls) {
                 else if (geom.type === 'LineString' && Array.isArray(geom.coordinates) && geom.coordinates.length > 0) {
                     const firstPt = geom.coordinates[0];
                     const lastPt = geom.coordinates[geom.coordinates.length - 1];
-                    
                     lon = parseFloat(firstPt[0]);
                     lat = parseFloat(firstPt[1]);
                     lonEnd = parseFloat(lastPt[0]);
                     latEnd = parseFloat(lastPt[1]);
                 } 
                 else if (geom.type === 'MultiLineString' && Array.isArray(geom.coordinates) && geom.coordinates[0]) {
-                    // Dans un MultiLineString, les coordonnées sont un tableau de lignes (tableaux de points)
                     const activeLine = geom.coordinates[0];
                     if (Array.isArray(activeLine) && activeLine.length > 0) {
                         const firstPt = activeLine[0];
                         const lastPt = activeLine[activeLine.length - 1];
-                        
                         lon = parseFloat(firstPt[0]);
                         lat = parseFloat(firstPt[1]);
                         lonEnd = parseFloat(lastPt[0]);
@@ -80,22 +74,10 @@ async function fetchGeojsonData(deptCode, urls) {
                     lat = parseFloat(firstPt[1]);
                 }
 
-                // 2. Récupération ou découpage intelligent de l'axe et de la commune
-                let axe = props.axe || props.route || props.Axe || props.route_libelle || '';
-                let commune = props.commune || props.ville || props.Commune || '';
-                
-                // Si Turbolead fournit un titre composite (ex: "RD 251 - THUSY - Info travaux")
-                if (props.titre && (!axe || !commune)) {
-                    const parts = props.titre.split(/\s*-\s*/);
-                    if (parts.length >= 2) {
-                        if (!axe) axe = parts[0].trim();
-                        if (!commune) commune = parts.slice(1).join(' - ').trim();
-                    }
-                }
-
-                // 3. Déduction intelligente de la Nature et de l'Impact via analyse de texte
-                const description = props.description || props.texte || props.commentaire || props.Commentaire || '';
-                const scanZone = `${props.titre || ''} ${description}`.toLowerCase();
+                // 2. Analyse intelligente du texte pour la Nature et l'Impact
+                const descriptionBrute = props.description || props.texte || props.commentaire || props.Commentaire || '';
+                const titreBrut = props.titre || '';
+                const scanZone = `${titreBrut} ${descriptionBrute}`.toLowerCase();
                 
                 let natureType = 'Alerte';
                 if (scanZone.includes('travaux') || scanZone.includes('chantier') || scanZone.includes('ouvrage d’art')) {
@@ -120,38 +102,73 @@ async function fetchGeojsonData(deptCode, urls) {
                 }
 
                 let impact = 'Restriction';
-                if (scanZone.includes('24h / 24') && (scanZone.includes('fermé') || scanZone.includes('coupé'))) {
+                if (scanZone.includes('24h / 24') && (scanZone.includes('fermé') || scanZone.includes('coupé') || scanZone.includes('barré'))) {
                     impact = 'Route coupée 24h/24';
-                } else if (scanZone.includes('route fermée') || scanZone.includes('route coupée')) {
+                } else if (scanZone.includes('route fermée') || scanZone.includes('route coupée') || scanZone.includes('route barrée') || scanZone.includes('barré')) {
                     impact = 'Route coupée';
                 } else if (scanZone.includes('alternat')) {
                     impact = 'Alternat';
                 }
 
-                // 4. Reconstruction du Titre au format standardisé "Nature — Axe — Commune"
-                const titreUnifie = [natureType, axe, commune].filter(Boolean).join(' — ') || props.titre || `Événement #${deptCode}-${index}`;
+                // 3. Extraction de l'axe et de la commune (Amélioré pour le Dép. 14)
+                let axe = props.axe || props.route || props.Axe || props.route_libelle || '';
+                let commune = props.commune || props.ville || props.Commune || '';
+                
+                if (titreBrut && (!axe || !commune)) {
+                    // Fallback 1: Si format "Titre - Sous-titre"
+                    if (titreBrut.includes(' - ')) {
+                        const parts = titreBrut.split(/\s*-\s*/);
+                        if (parts.length >= 2) {
+                            if (!axe) axe = parts[0].trim();
+                            if (!commune) commune = parts.slice(1).join(' - ').trim();
+                        }
+                    } 
+                    // Fallback 2: Spécifique format Calvados 14 "RD X Commune de Y"
+                    else if (titreBrut.toLowerCase().includes('commune de')) {
+                        const match14 = titreBrut.match(/(.*?)\s*commune\s*de\s*(.*)/i);
+                        if (match14) {
+                            if (!axe) axe = match14[1].trim();
+                            if (!commune) commune = match14[2].trim();
+                        }
+                    }
+                }
 
-                // 5. Normalisation des dates (Gestion du format "JJ/MM/AA HH:MM" de Turbolead)
-                const dateDebRaw = props.date_evt_debut || props.date_deb || props.debut || props.Debut || '';
-                const dateFinRaw = props.date_evt_fin || props.date_fin || props.fin || props.Fin || '';
+                // Si malgré tout on a rien trouvé, on prend le titre brut complet pour l'axe
+                if (!axe && titreBrut) axe = titreBrut;
+
+                // Reconstruction du Titre au format standardisé "Nature — Axe — Commune"
+                const titreUnifie = [natureType, axe, commune].filter(Boolean).join(' — ') || titreBrut || `Événement #${deptCode}-${index}`;
+
+                // 4. Normalisation stricte des dates (Nettoyage des doubles espaces de Turbolead)
+                const dateDebRaw = (props.date_evt_debut || props.date_deb || props.debut || props.Debut || '').replace(/\s+/g, ' ').trim();
+                const dateFinRaw = (props.date_evt_fin || props.date_fin || props.fin || props.Fin || '').replace(/\s+/g, ' ').trim();
 
                 const formatYear = (str) => {
                     if (!str) return '';
-                    // Transforme "JJ/MM/AA" en "JJ/MM/20AA" si l'année n'a que 2 chiffres
+                    // Transforme "JJ/MM/AA HH:MM" en "JJ/MM/20AA HH:MM"
                     return str.replace(/(\d{2})\/(\d{2})\/(\d{2})(\s+|\b)/g, '$1/$2/20$3$4').trim();
                 };
 
                 const dateDebut = formatYear(dateDebRaw) || 'Non spécifiée';
                 const dateFin = formatYear(dateFinRaw);
 
-                // 6. Assemblage du bloc textuel attendu par app.js
+                // 5. Assemblage rigoureux du bloc textuel attendu par le parser Regex de app.js
                 let chunks = [];
                 chunks.push(`Type : ${natureType}`);
                 chunks.push(`Impact : ${impact}`);
-                if (props.location || props.lieu) chunks.push(`Lieu : ${props.location || props.lieu}`);
+                chunks.push(`Emplacement : ${[axe, commune].filter(Boolean).join(' — ') || titreBrut}`);
                 chunks.push(`Début : ${dateDebut}`);
                 if (dateFin) chunks.push(`Fin : ${dateFin}`);
-                if (description) chunks.push(`\nDétails :\n${cleanText(description)}`);
+                
+                let sourceFinale = props.source || "";
+                if (!sourceFinale && url.toLowerCase().includes('inforoute')) {
+                    sourceFinale = `Inforoute ${deptCode}`;
+                }
+                chunks.push(`Source : ${sourceFinale || 'Non spécifiée'}`);
+
+                if (descriptionBrute) {
+                    chunks.push(`\nDétails :\n${cleanText(descriptionBrute)}`);
+                }
 
                 alerts.push({
                     id: `${deptCode}-${props.id || props.uid || props.idtInfo || props.id_repere || index}`,
@@ -162,10 +179,11 @@ async function fetchGeojsonData(deptCode, urls) {
                     severity: 'info', 
                     lat: isNaN(lat) ? null : lat,
                     lon: isNaN(lon) ? null : lon,
-                    latEnd: isNaN(latEnd) ? null : latEnd, // Injecté pour l'UI de app.js
-                    lonEnd: isNaN(lonEnd) ? null : lonEnd, // Injecté pour l'UI de app.js
-                    source: props.source || "",            // Conserve la source si présente
-                    docs: props.docs || []                 // FIX : Sauvegarde des documents joints
+                    latEnd: isNaN(latEnd) ? null : latEnd,
+                    lonEnd: isNaN(lonEnd) ? null : lonEnd,
+                    source: sourceFinale || "Non spécifiée",
+                    docs: props.docs || [],
+                    icon_svg: props.url_icone || null // Sauvegarde du lien icône pour l'UI
                 });
             });
         } catch (err) {
@@ -174,7 +192,6 @@ async function fetchGeojsonData(deptCode, urls) {
     }
     return alerts;
 }
-
 // --- MOTEUR HISTORIQUE : API Savoie (73) ---
 async function fetchSavoieApiData(deptCode, apiBaseUrl) {
     let alerts = [];
