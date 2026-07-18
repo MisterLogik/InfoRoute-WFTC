@@ -12,6 +12,7 @@ const btnResetFilters = document.getElementById('btn-reset-filters');
 const btnToggleSort = document.getElementById('btn-toggle-sort');
 
 const btnQuickToday = document.getElementById('btn-quick-today');
+const btnQuickTomorrow = document.getElementById('btn-quick-tomorrow');
 const btnQuickWeek = document.getElementById('btn-quick-week');
 const btnQuickNextWeek = document.getElementById('btn-quick-next-week');
 const btnQuickMonth = document.getElementById('btn-quick-month');
@@ -73,6 +74,7 @@ function setupEventListeners() {
     if (btnToggleSort) btnToggleSort.addEventListener('click', toggleSortOrder);
     
     if (btnQuickToday) btnQuickToday.addEventListener('click', setFilterToday);
+    if (btnQuickTomorrow) btnQuickTomorrow.addEventListener('click', setFilterTomorrow); 
     if (btnQuickWeek) btnQuickWeek.addEventListener('click', setFilterWeek);
     if (btnQuickNextWeek) btnQuickNextWeek.addEventListener('click', setFilterNextWeek);
     if (btnQuickMonth) btnQuickMonth.addEventListener('click', setFilterMonth);
