@@ -169,14 +169,6 @@ async function fetchGeojsonData(deptCode, urls) {
                 if (descriptionBrute) {
                     chunks.push(`\nDétails :\n${cleanText(descriptionBrute)}`);
                 }
-
-                if (deptCode === '14' || deptCode === 14) {
-                    console.log("=== DIAGNOSTIC DÉP. 14 ===");
-                    console.log("ID de l'alerte :", props.id || props.id_repere);
-                    console.log("Description brute du flux :", JSON.stringify(descriptionBrute));
-                    console.log("Contenu généré pour CROSS :\n" + chunks.join('\n'));
-                    console.log("=========================================");
-                }
                 
                 alerts.push({
                     id: `${deptCode}-${props.id || props.uid || props.idtInfo || props.id_repere || index}`,
