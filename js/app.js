@@ -158,9 +158,13 @@ function setFilterTomorrow() { // Nouveau bouton "Demain"
 
 function setFilterWeek() {
     resetAllFilters();
-    const start = new Date();
-    const end = new Date();
-    end.setDate(start.getDate() + 6); 
+    const now = new Date();
+    const currentDay = now.getDay();
+    const distanceToMonday = currentDay === 0 ? -6 : 1 - currentDay;
+    const start = new Date(now);
+    start.setDate(now.getDate() + distanceToMonday);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
     if (filterDateTarget) filterDateTarget.value = 'start';
     if (filterDateMin) filterDateMin.value = getYYYYMMDD(start);
     if (filterDateMax) filterDateMax.value = getYYYYMMDD(end);
@@ -169,10 +173,13 @@ function setFilterWeek() {
 
 function setFilterNextWeek() {
     resetAllFilters();
-    const start = new Date();
-    start.setDate(start.getDate() + 7); 
-    const end = new Date();
-    end.setDate(start.getDate() + 6); 
+    const now = new Date();
+    const currentDay = now.getDay();
+    const distanceToMonday = currentDay === 0 ? -6 : 1 - currentDay;
+    const start = new Date(now);
+    start.setDate(now.getDate() + distanceToMonday + 7);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
     if (filterDateTarget) filterDateTarget.value = 'start';
     if (filterDateMin) filterDateMin.value = getYYYYMMDD(start);
     if (filterDateMax) filterDateMax.value = getYYYYMMDD(end);
@@ -181,11 +188,12 @@ function setFilterNextWeek() {
 
 function setFilterMonth() {
     resetAllFilters();
-    const start = new Date();
-    const end = new Date(start.getFullYear(), start.getMonth() + 1, 0); 
+    const now = new Date();
+    const firstDayMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastDayMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0); 
     if (filterDateTarget) filterDateTarget.value = 'start';
-    if (filterDateMin) filterDateMin.value = getYYYYMMDD(start);
-    if (filterDateMax) filterDateMax.value = getYYYYMMDD(end);
+    if (filterDateMin) filterDateMin.value = getYYYYMMDD(firstDayMonth);
+    if (filterDateMax) filterDateMax.value = getYYYYMMDD(lastDayMonth);
     renderAlerts();
 }
 
