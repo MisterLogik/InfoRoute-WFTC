@@ -152,7 +152,7 @@ async function fetchGeojsonData(deptCode, urls) {
                 chunks.push(`Début : ${dateDebut}`);
                 if (dateFin) chunks.push(`Fin : ${dateFin}`);
                 //if (description) chunks.push(`\nDétails :\n${cleanText(description)}`);
-                if (description) chunks.push(`\nDétails : ${cleanText(description)}`);
+                if (description) chunks.push(`Détails : ${cleanText(description)}`);
 
                 alerts.push({
                     id: `${deptCode}-${props.id || props.uid || props.idtInfo || props.id_repere || index}`,
